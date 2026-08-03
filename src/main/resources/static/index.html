@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring AI 体验中心</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .header h1 { font-size: 2.2em; margin-bottom: 8px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .header p { font-size: 1em; opacity: 0.9; }
+
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 0;
+            padding: 0 10px;
+        }
+        .tab {
+            padding: 12px 24px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        .tab.active { background: white; color: #667eea; }
+        .tab:hover:not(.active) { background: rgba(255,255,255,0.35); }
+
+        .panel {
+            display: none;
+            background: white;
+            border-radius: 0 0 15px 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .panel.active { display: block; }
+
+        .panel-body { padding: 20px; }
+        .main-content { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+        @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+
+        .chat-messages {
+            height: 460px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            border-radius: 10px;
+            max-width: 85%;
+            line-height: 1.6;
+            animation: fadeIn 0.3s ease;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .user-message {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 3px;
+        }
+        .bot-message {
+            background: white;
+            border: 1px solid #e0e0e0;
+            margin-right: auto;
+            border-bottom-left-radius: 3px;
+        }
+        .message-time { font-size: 0.75em; opacity: 0.7; margin-top: 5px; text-align: right; }
+
+        .chat-input { padding: 15px 0; display: flex; gap: 10px; }
+        .chat-input textarea {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            resize: none;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        .chat-input textarea:focus { outline: none; border-color: #667eea; }
+        .btn-primary {
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.4); }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        .btn-danger { background: #ff4757; }
+        .btn-danger:hover { background: #ff6b81; box-shadow: 0 5px 15px rgba(255,71,87,0.4); }
+
+        .info-panel { background: #f9f9f9; border-radius: 10px; padding: 18px; height: fit-content; }
+        .info-panel h3 { color: #667eea; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #eee; font-size: 1.1em; }
+        .info-item { margin-bottom: 12px; padding: 10px; background: white; border-radius: 8px; border-left: 4px solid #667eea; }
+        .info-item h4 { color: #333; margin-bottom: 4px; font-size: 1em; }
+        .info-item p { color: #666; font-size: 0.88em; line-height: 1.5; }
+        .example-btn {
+            display: block;
+            width: 100%;
+            padding: 9px;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9em;
+            color: #444;
+        }
+        .example-btn:hover { background: #eee; border-color: #667eea; transform: translateX(4px); }
+
+        .agent-selector { margin-bottom: 15px; }
+        .agent-selector label { display: block; font-size: 0.9em; color: #555; margin-bottom: 6px; font-weight: 600; }
+        .agent-selector select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.95em;
+            cursor: pointer;
+        }
+
+        .stats { margin-top: 15px; padding: 12px; background: white; border-radius: 8px; }
+        .stats-item { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.9em; }
+        .stats-item strong { color: #667eea; }
+
+        .rag-section { max-width: 800px; }
+        .rag-section h3 { color: #667eea; margin-bottom: 12px; }
+        .rag-bar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+        .rag-result {
+            padding: 18px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            min-height: 300px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.7;
+        }
+        .rag-hint { color: #999; font-size: 0.9em; margin-top: 8px; }
+
+        .status {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.9em;
+            display: none;
+        }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.loading { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px; height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            margin: 0 1px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%,80%,100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        .chat-messages::-webkit-scrollbar { width: 8px; }
+        .chat-messages::-webkit-scrollbar-track { background: #f1f1f1; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #667eea; border-radius: 4px; }
+
+        .stream-output {
+            height: 460px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #1e1e2e;
+            color: #a6e3a1;
+            border-radius: 10px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🤖 Spring AI 体验中心</h1>
+        <p>多 Agent 协作 · RAG 知识库 · 流式对话</p>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('agent', this)">🤖 Agent 对话</button>
+        <button class="tab" onclick="switchTab('rag', this)">📚 RAG 知识库</button>
+        <button class="tab" onclick="switchTab('stream', this)">⚡ 流式对话</button>
+    </div>
+
+    <!-- Agent 对话面板 -->
+    <div class="panel active" id="panel-agent">
+        <div class="panel-body">
+            <div class="main-content">
+                <div>
+                    <div class="chat-messages" id="agentMessages">
+                        <div class="message bot-message">
+                            <strong>🤖 AI助手:</strong> 您好！我是您的智能助手，可以帮您查询天气、深度研究分析、撰写文案。请选择左侧的 Agent 或使用智能路由开始体验。
+                            <div class="message-time" id="agentInitTime"></div>
+                        </div>
+                    </div>
+                    <div class="chat-input">
+                        <textarea id="agentInput" placeholder="输入您的问题... (Ctrl+Enter 发送)" rows="1"></textarea>
+                        <button class="btn-primary" id="agentSendBtn" onclick="sendAgentMessage()">发送</button>
+                    </div>
+                </div>
+                <div class="info-panel">
+                    <div class="agent-selector">
+                        <label>选择 Agent</label>
+                        <select id="agentSelect">
+                            <option value="auto">🤖 智能路由（自动）</option>
+                        </select>
+                    </div>
+                    <h3>💡 快速示例</h3>
+                    <button class="example-btn" onclick="useAgentExample('北京今天天气怎么样？')">🌤️ 北京今天天气怎么样？</button>
+                    <button class="example-btn" onclick="useAgentExample('分析一下人工智能的发展趋势')">🔬 分析人工智能的发展趋势</button>
+                    <button class="example-btn" onclick="useAgentExample('帮我写一篇关于春天的散文')">✍️ 帮我写一篇关于春天的散文</button>
+                    <button class="example-btn" onclick="useAgentExample('上海明天会下雨吗？')">🌤️ 上海明天会下雨吗？</button>
+                    <button class="example-btn" onclick="useAgentExample('研究一下新能源车的原理')">🔬 研究新能源车的原理</button>
+                    <button class="example-btn" onclick="useAgentExample('撰写一份项目周报模板')">✍️ 撰写项目周报模板</button>
+                    <div class="stats">
+                        <div class="stats-item"><span>对话次数:</span><strong id="agentMsgCount">0</strong></div>
+                        <div class="stats-item"><span>响应时间:</span><strong id="agentRespTime">-</strong></div>
+                    </div>
+                    <button class="btn-primary btn-danger" style="width:100%;margin-top:10px;" onclick="clearAgentChat()">🗑️ 清空对话</button>
+                    <div id="agentStatus" class="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RAG 知识库面板 -->
+    <div class="panel" id="panel-rag">
+        <div class="panel-body rag-section">
+            <h3>📚 RAG 知识库问答</h3>
+            <p style="color:#666;margin-bottom:15px;">
+                将文档放入 <code>src/main/resources/materials/</code> 目录后点击「入库」，
+                然后基于知识库提问。需先执行 <code>ollama pull nomic-embed-text</code> 准备向量模型。
+            </p>
+            <div class="rag-bar">
+                <button class="btn-primary" id="ragIngestBtn" onclick="ragIngest()">📥 一键入库</button>
+                <span class="rag-hint" id="ragIngestHint">入库会读取 materials 目录所有文件并分块向量化</span>
+            </div>
+            <div class="chat-input" style="padding:0 0 15px 0;">
+                <textarea id="ragQuestion" placeholder="基于知识库提问，例如：这份材料的核心观点是什么？" rows="2"></textarea>
+                <button class="btn-primary" id="ragQueryBtn" onclick="ragQuery()">🔍 查询</button>
+            </div>
+            <div class="rag-result" id="ragResult">💡 入库后在此显示查询结果...</div>
+            <div id="ragStatus" class="status"></div>
+        </div>
+    </div>
+
+    <!-- 流式对话面板 -->
+    <div class="panel" id="panel-stream">
+        <div class="panel-body">
+            <div class="main-content">
+                <div>
+                    <div class="stream-output" id="streamOutput">⚡ 流式响应将在此实时输出...
+
+（调用 /chat/stream 接口，基于 SSE 逐字返回）</div>
+                    <div class="chat-input">
+                        <textarea id="streamInput" placeholder="输入问题，体验流式输出... (Ctrl+Enter 发送)" rows="1"></textarea>
+                        <button class="btn-primary" id="streamSendBtn" onclick="sendStreamMessage()">发送</button>
+                    </div>
+                </div>
+                <div class="info-panel">
+                    <h3>⚡ 流式对话说明</h3>
+                    <div class="info-item">
+                        <h4>实时输出</h4>
+                        <p>基于 Server-Sent Events，模型生成一个字就显示一个字，无需等待完整回复。</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>接口</h4>
+                        <p><code>GET /chat/stream?msg=xxx</code></p>
+                    </div>
+                    <h3>💡 快速示例</h3>
+                    <button class="example-btn" onclick="useStreamExample('用三段话介绍Spring框架')">用三段话介绍Spring框架</button>
+                    <button class="example-btn" onclick="useStreamExample('写一首关于代码的诗')">写一首关于代码的诗</button>
+                    <button class="example-btn" onclick="useStreamExample('解释什么是RAG技术')">解释什么是RAG技术</button>
+                    <button class="example-btn" onclick="useStreamExample('给我讲个程序员笑话')">给我讲个程序员笑话</button>
+                    <button class="btn-primary btn-danger" style="width:100%;margin-top:10px;" onclick="clearStream()">🗑️ 清空</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let agentMsgCount = 0;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('agentInitTime').textContent = nowStr();
+        const agentInput = document.getElementById('agentInput');
+        agentInput.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); sendAgentMessage(); }
+        });
+        agentInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+        const streamInput = document.getElementById('streamInput');
+        streamInput.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); sendStreamMessage(); }
+        });
+        document.getElementById('ragQuestion').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); ragQuery(); }
+        });
+        loadAvailableAgents();
+    });
+
+    function nowStr() {
+        const n = new Date();
+        return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(n.getDate()).padStart(2,'0') + ' ' + String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+    }
+
+    function switchTab(name, btn) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('panel-' + name).classList.add('active');
+    }
+
+    async function loadAvailableAgents() {
+        try {
+            const resp = await fetch('/api/agent/agents');
+            if (resp.ok) {
+                const agents = await resp.json();
+                const sel = document.getElementById('agentSelect');
+                const icons = { 'weather-agent': '🌤️', 'research-agent': '🔬', 'writing-agent': '✍️' };
+                Object.keys(agents).forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = (icons[name] || '🤖') + ' ' + name + ' — ' + agents[name];
+                    sel.appendChild(opt);
+                });
+            }
+        } catch (e) { console.error('加载Agents失败:', e); }
+    }
+
+    function useAgentExample(text) {
+        document.getElementById('agentInput').value = text;
+        document.getElementById('agentInput').focus();
+    }
+    function useStreamExample(text) {
+        document.getElementById('streamInput').value = text;
+        document.getElementById('streamInput').focus();
+    }
+
+    async function sendAgentMessage() {
+        const input = document.getElementById('agentInput');
+        const msg = input.value.trim();
+        if (!msg) { showStatus('agentStatus', '请输入消息', 'error'); return; }
+        addAgentMessage(msg, 'user');
+        input.value = ''; input.style.height = 'auto';
+        const botDiv = addAgentMessage('', 'bot', true);
+        const startTime = Date.now();
+        agentMsgCount++;
+        document.getElementById('agentMsgCount').textContent = agentMsgCount;
+        const sel = document.getElementById('agentSelect');
+        const agentVal = sel.value;
+        let url, data;
+        if (agentVal === 'auto') {
+            url = '/api/agent/process'; data = { task: msg };
+        } else {
+            url = '/api/agent/execute/' + agentVal; data = { task: msg };
+        }
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000);
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const result = await resp.json();
+            const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+            document.getElementById('agentRespTime').textContent = duration + 's';
+            let text;
+            if (typeof result === 'string') text = result;
+            else if (result && result.content) text = result.content;
+            else if (result && result.error) text = '❌ ' + result.error;
+            else text = JSON.stringify(result, null, 2);
+            botDiv.querySelector('.message-content').textContent = text;
+        } catch (e) {
+            botDiv.querySelector('.message-content').textContent = '❌ 请求失败: ' + (e.name === 'AbortError' ? '超时' : e.message);
+            showStatus('agentStatus', '请求失败: ' + e.message, 'error');
+        } finally {
+            const ti = botDiv.querySelector('.typing-indicator');
+            if (ti) ti.remove();
+        }
+    }
+
+    function addAgentMessage(text, sender, showTyping = false) {
+        const box = document.getElementById('agentMessages');
+        const div = document.createElement('div');
+        div.className = 'message ' + sender + '-message';
+        if (sender === 'user') {
+            div.innerHTML = '<strong>👤 您:</strong> ' + escapeHtml(text) + '<div class="message-time">' + nowStr() + '</div>';
+        } else {
+            div.innerHTML = '<strong>🤖 AI助手:</strong> <span class="message-content">' + escapeHtml(text) + '</span>' +
+                (showTyping ? '<span class="typing-indicator"><span></span><span></span><span></span></span>' : '') +
+                '<div class="message-time">' + nowStr() + '</div>';
+        }
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+        return div;
+    }
+
+    function clearAgentChat() {
+        if (confirm('确定清空对话？')) {
+            document.getElementById('agentMessages').innerHTML = '<div class="message bot-message"><strong>🤖 AI助手:</strong> 对话已清空，请继续提问。<div class="message-time">' + nowStr() + '</div></div>';
+            agentMsgCount = 0;
+            document.getElementById('agentMsgCount').textContent = '0';
+            document.getElementById('agentRespTime').textContent = '-';
+        }
+    }
+
+    async function ragIngest() {
+        const btn = document.getElementById('ragIngestBtn');
+        btn.disabled = true; btn.textContent = '⏳ 入库中...';
+        showStatus('ragStatus', '正在读取并入库材料...', 'loading');
+        try {
+            const resp = await fetch('/rag/ingest', { method: 'POST' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const result = await resp.json();
+            showStatus('ragStatus', '✅ 入库成功！共入库 ' + result.chunksIngested + ' 个文档块', 'success');
+            document.getElementById('ragIngestHint').textContent = '已入库 ' + result.chunksIngested + ' 块，可以开始查询了';
+        } catch (e) {
+            showStatus('ragStatus', '❌ 入库失败: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false; btn.textContent = '📥 一键入库';
+        }
+    }
+
+    async function ragQuery() {
+        const q = document.getElementById('ragQuestion').value.trim();
+        if (!q) { showStatus('ragStatus', '请输入问题', 'error'); return; }
+        const btn = document.getElementById('ragQueryBtn');
+        btn.disabled = true; btn.textContent = '⏳ 查询中...';
+        const resultDiv = document.getElementById('ragResult');
+        resultDiv.textContent = '⏳ 正在检索知识库并生成回答...';
+        showStatus('ragStatus', '查询中...', 'loading');
+        try {
+            const resp = await fetch('/rag/query?question=' + encodeURIComponent(q));
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const result = await resp.json();
+            resultDiv.innerHTML = '<strong style="color:#667eea;">❓ 问题：</strong>' + escapeHtml(result.question || q) +
+                '\n\n<strong style="color:#667eea;">💡 回答：</strong>\n' + escapeHtml(result.answer || '无结果');
+            showStatus('ragStatus', '✅ 查询完成', 'success');
+        } catch (e) {
+            resultDiv.textContent = '❌ 查询失败: ' + e.message;
+            showStatus('ragStatus', '查询失败: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false; btn.textContent = '🔍 查询';
+        }
+    }
+
+    async function sendStreamMessage() {
+        const input = document.getElementById('streamInput');
+        const msg = input.value.trim();
+        if (!msg) return;
+        const output = document.getElementById('streamOutput');
+        output.textContent = '';
+        const btn = document.getElementById('streamSendBtn');
+        btn.disabled = true;
+        try {
+            const resp = await fetch('/chat/stream?msg=' + encodeURIComponent(msg));
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+                for (const line of lines) {
+                    if (line.startsWith('data:')) {
+                        const chunk = line.slice(5);
+                        if (chunk && chunk !== '[DONE]') {
+                            output.textContent += chunk;
+                            output.scrollTop = output.scrollHeight;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            output.textContent += '\n❌ 流式请求失败: ' + e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function clearStream() {
+        document.getElementById('streamOutput').textContent = '⚡ 流式响应将在此实时输出...';
+        document.getElementById('streamInput').value = '';
+    }
+
+    function showStatus(id, message, type) {
+        const s = document.getElementById(id);
+        s.textContent = message;
+        s.className = 'status ' + type;
+        s.style.display = 'block';
+        if (type !== 'loading') setTimeout(() => { s.style.display = 'none'; }, 4000);
+    }
+
+    function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+</script>
+</body>
+</html>
