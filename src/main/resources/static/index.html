@@ -271,7 +271,7 @@
             <h3>📚 RAG 知识库问答</h3>
             <p style="color:#666;margin-bottom:15px;">
                 将文档放入 <code>src/main/resources/materials/</code> 目录后点击「入库」，
-                然后基于知识库提问。需先执行 <code>ollama pull nomic-embed-text</code> 准备向量模型。
+                然后基于知识库提问。需先启动 PostgreSQL + PgVector（参考 docker-compose.yml）。
             </p>
             <div class="rag-bar">
                 <button class="btn-primary" id="ragIngestBtn" onclick="ragIngest()">📥 一键入库</button>

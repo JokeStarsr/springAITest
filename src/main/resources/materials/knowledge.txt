@@ -5,7 +5,7 @@ Spring AI 项目知识库
 技术架构：
 - 对话模型：DeepSeek（deepseek-chat，V3 通用模型），通过 OpenAI 兼容协议接入
 - Embedding 模型：智谱 ZhiPu embedding-2，用于 RAG 向量检索
-- 向量库：SimpleInMemoryVectorStore，内存存储，重启后需重新入库
+- 向量库：PgVector（PostgreSQL + pgvector 扩展），生产级持久化存储，数据重启不丢失
 
 核心功能：
 1. 基础对话：/chat 接口，单轮对话，由 DeepSeek 提供回答

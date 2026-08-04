@@ -2,33 +2,37 @@ spring:
   application:
     name: spring-ai-agent-demo
 
-  # 指定各功能使用的模型提供者
-  # chat 走 OpenAI 兼容协议（DeepSeek），embedding 走 智谱ZhiPu
   ai:
     model:
       chat: openai
       embedding: zhipuai
 
-    # DeepSeek（兼容 OpenAI 协议）作为对话模型
     openai:
-      # API key 通过环境变量注入，避免泄露（systemd Environment=DEEPSEEK_API_KEY=...）
       api-key: ${DEEPSEEK_API_KEY}
       base-url: https://api.deepseek.com
       chat:
         options:
-          # deepseek-chat 为 V3 通用模型，性价比最高
-          # 输入 ¥0.27/百万tokens，输出 ¥1/百万tokens
           model: deepseek-chat
           temperature: 0.7
 
-    # 智谱ZhiPu 用于 RAG embedding（embedding-2 模型，0.5元/百万tokens）
-    # 注意：属性前缀为 spring.ai.zhipuai（全称），不是 zhipu
     zhipuai:
-      # API key 通过环境变量注入（systemd Environment=ZHIPU_API_KEY=...）
       api-key: ${ZHIPU_API_KEY}
       embedding:
         options:
           model: embedding-2
+
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 1024
+        initialize-schema: true
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:rag_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
 
 server:
   address: 0.0.0.0
