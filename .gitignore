@@ -38,3 +38,7 @@ build/
 .DS_Storessh_exec.sh
 .idea/
 target/
+这些
+### Secrets ###
+application-local.yml
+application-secrets.yml
