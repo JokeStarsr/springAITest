@@ -26,7 +26,7 @@ public class AgentController {
     }
 
     /**
-     * 智能Agent路由 - 自动选择合适的Agent
+     * 智能Agent路由 -自动选择合适的Agent
      */
     @PostMapping("/process")
     public String process(@RequestBody ProcessRequest request) {
