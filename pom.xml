@@ -74,6 +74,11 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
         </dependency>
+        <!-- Spring JDBC（PgVector 自动配置必需，提供 DataSource） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
         <!-- Spring AI RAG Advisor（含 QuestionAnswerAdvisor） -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
