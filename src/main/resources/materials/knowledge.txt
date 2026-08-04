@@ -1,0 +1,21 @@
+Spring AI 项目知识库
+
+本项目名称为 spring-ai-agent-demo，是一个基于 Spring Boot 3.4.5 和 Spring AI 1.0.0 的智能应用演示。
+
+技术架构：
+- 对话模型：DeepSeek（deepseek-chat，V3 通用模型），通过 OpenAI 兼容协议接入
+- Embedding 模型：智谱 ZhiPu embedding-2，用于 RAG 向量检索
+- 向量库：SimpleInMemoryVectorStore，内存存储，重启后需重新入库
+
+核心功能：
+1. 基础对话：/chat 接口，单轮对话，由 DeepSeek 提供回答
+2. 多轮对话：/chat/context 接口，支持上下文
+3. 流式响应：/chat/stream 接口，SSE 流式输出
+4. RAG 检索增强：/rag/ingest 入库，/rag/query 问答
+5. Agent 编排：/api/agent/process 智能路由，支持天气、研究、写作三类 Agent
+
+部署信息：
+- 服务器：OpenCloudOS 9
+- 端口：18080
+- 服务管理：systemd (springaitest.service)
+- 独立目录：/opt/springaitest
