@@ -578,18 +578,25 @@
     <!-- ========== RAG 知识库面板 ========== -->
     <div class="panel" id="panel-rag">
         <div class="rag-section">
-            <h3>📚 RAG 知识库问答</h3>
-            <p class="hint">将文档放入 <code>src/main/resources/materials/</code> 目录后点击「入库」，然后基于知识库提问。</p>
-            <div class="rag-bar">
-                <button class="btn btn-primary" id="ragIngestBtn" onclick="ragIngest()">📥 一键入库</button>
-                <span class="tag" id="ragIngestHint">入库会读取 materials 目录所有文件并分块向量化</span>
+            <!-- 创建新知识库 -->
+            <div style="background:var(--surface);padding:16px;border-radius:var(--radius-sm);margin-bottom:16px;border:1px solid var(--border);">
+                <h3 style="color:var(--accent2);margin-bottom:8px;">📚 创建新知识库</h3>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <input type="text" id="kbName" placeholder="知识库名称（如：产品手册）"
+                           style="flex:1;min-width:160px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.88rem;font-family:var(--font);outline:none;">
+                    <input type="text" id="kbDesc" placeholder="描述（可选）"
+                           style="flex:1;min-width:160px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.88rem;font-family:var(--font);outline:none;">
+                    <button class="btn btn-primary" onclick="createKnowledgeBase()">➕ 创建</button>
+                </div>
             </div>
-            <div class="chat-input" style="border-top:none;padding-top:0;margin-bottom:12px;">
-                <textarea id="ragQuestion" placeholder="基于知识库提问，例如：这份材料的核心观点是什么？" rows="2"></textarea>
-                <button class="btn btn-primary" id="ragQueryBtn" onclick="ragQuery()">🔍</button>
+
+            <!-- 知识库列表 -->
+            <div id="kbListContainer">
+                <h3 style="color:var(--accent2);margin-bottom:10px;">📂 我的知识库</h3>
+                <div id="kbList" style="display:flex;flex-direction:column;gap:12px;">
+                    <div style="text-align:center;padding:30px;color:var(--text2);font-size:0.9rem;">⏳ 加载中...</div>
+                </div>
             </div>
-            <div class="rag-result" id="ragResult">💡 入库后在此显示查询结果...</div>
-            <div id="ragStatus" class="status"></div>
         </div>
     </div>
 
@@ -660,12 +667,8 @@
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendStreamMessage(); }
         });
 
-        const ragInput = document.getElementById('ragQuestion');
-        ragInput.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ragQuery(); }
-        });
-
         loadAvailableAgents();
+        loadKnowledgeBases();
 
         // 桌面端 Tab 切换
         document.querySelectorAll('#tabsDesktop .tab').forEach(tab => {
@@ -807,44 +810,160 @@
         document.getElementById('agentRespTime').textContent = '-';
     }
 
-    async function ragIngest() {
-        const btn = document.getElementById('ragIngestBtn');
-        btn.disabled = true; btn.textContent = '⏳ 入库中...';
-        showStatus('ragStatus', '正在读取并入库材料...', 'loading');
+    // ====== 知识库管理 ======
+
+    async function loadKnowledgeBases() {
         try {
-            const resp = await fetch('/rag/ingest', { method: 'POST' });
+            const resp = await fetch('/api/knowledge-bases');
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const result = await resp.json();
-            showStatus('ragStatus', '✅ 入库成功！共入库 ' + result.chunksIngested + ' 个文档块', 'success');
-            document.getElementById('ragIngestHint').textContent = '已入库 ' + result.chunksIngested + ' 块，可以开始查询了';
+            const kbs = await resp.json();
+            const container = document.getElementById('kbList');
+            if (kbs.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text2);font-size:0.9rem;">📭 暂无知识库，在上方创建</div>';
+                return;
+            }
+            let html = '';
+            for (const kb of kbs) {
+                html += renderKnowledgeBaseCard(kb);
+            }
+            container.innerHTML = html;
         } catch (e) {
-            showStatus('ragStatus', '❌ 入库失败: ' + e.message, 'error');
-        } finally {
-            btn.disabled = false; btn.textContent = '📥 一键入库';
+            document.getElementById('kbList').innerHTML =
+                '<div style="text-align:center;padding:30px;color:var(--danger);font-size:0.9rem;">❌ 加载失败: ' + escapeHtml(e.message) + '</div>';
         }
     }
 
-    async function ragQuery() {
-        const q = document.getElementById('ragQuestion').value.trim();
-        if (!q) { showStatus('ragStatus', '请输入问题', 'error'); return; }
-        const btn = document.getElementById('ragQueryBtn');
-        btn.disabled = true; btn.textContent = '⏳';
-        const resultDiv = document.getElementById('ragResult');
-        resultDiv.textContent = '⏳ 正在检索知识库并生成回答...';
-        showStatus('ragStatus', '查询中...', 'loading');
+    function renderKnowledgeBaseCard(kb) {
+        const id = kb.id;
+        const name = escapeHtml(kb.name);
+        const desc = escapeHtml(kb.description || '');
+        const docCount = kb.docCount || 0;
+        const createdAt = kb.createdAt ? kb.createdAt.substring(0, 10) : '';
+
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">' +
+            '<div class="kb-header" style="padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleKb(' + id + ')">' +
+            '<div><strong style="color:var(--accent2);font-size:0.95rem;">📖 ' + name + '</strong>' +
+            (desc ? '<div style="font-size:0.8rem;color:var(--text2);margin-top:2px;">' + desc + '</div>' : '') +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+            '<span class="tag" style="font-size:0.75rem;">' + docCount + ' 文档</span>' +
+            '<span style="color:var(--text2);font-size:0.75rem;">' + createdAt + '</span>' +
+            '<span id="kbToggle_' + id + '" style="color:var(--text2);font-size:0.8rem;">▼</span>' +
+            '</div>' +
+            '</div>' +
+            '<div id="kbDetail_' + id + '" style="display:none;padding:0 16px 16px;border-top:1px solid var(--border);">' +
+            // 上传文件
+            '<div style="margin:12px 0;display:flex;gap:10px;flex-wrap:wrap;">' +
+            '<input type="file" id="kbFileInput_' + id + '" style="flex:1;min-width:140px;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.82rem;">' +
+            '<button class="btn btn-sm btn-primary" onclick="uploadKbFile(' + id + ')">📤 上传并入库</button>' +
+            '<button class="btn btn-sm" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);" onclick="reingestKb(' + id + ')">🔄 重新入库</button>' +
+            '</div>' +
+            // 查询
+            '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
+            '<input type="text" id="kbQueryInput_' + id + '" placeholder="基于该知识库提问..." ' +
+            'style="flex:1;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.85rem;font-family:var(--font);outline:none;" ' +
+            'onkeydown="if(event.key===\\'Enter\\')queryKb(' + id + ')">' +
+            '<button class="btn btn-sm btn-primary" onclick="queryKb(' + id + ')">🔍</button>' +
+            '</div>' +
+            '<div id="kbResult_' + id + '" style="padding:12px;background:var(--surface2);border-radius:var(--radius-sm);min-height:40px;font-size:0.85rem;color:var(--text2);line-height:1.6;white-space:pre-wrap;word-break:break-word;margin-bottom:10px;">💡 上传文档后在此提问</div>' +
+            // 删除
+            '<button class="btn btn-sm btn-danger" onclick="deleteKb(' + id + ')">🗑 删除知识库</button>' +
+            '</div>' +
+            '</div>';
+    }
+
+    function toggleKb(id) {
+        const detail = document.getElementById('kbDetail_' + id);
+        const toggle = document.getElementById('kbToggle_' + id);
+        if (detail.style.display === 'none') {
+            detail.style.display = 'block';
+            toggle.textContent = '▲';
+        } else {
+            detail.style.display = 'none';
+            toggle.textContent = '▼';
+        }
+    }
+
+    async function createKnowledgeBase() {
+        const name = document.getElementById('kbName').value.trim();
+        const desc = document.getElementById('kbDesc').value.trim();
+        if (!name) { showStatus('ragStatus', '请输入知识库名称', 'error'); return; }
         try {
-            const resp = await fetch('/rag/query?question=' + encodeURIComponent(q));
+            const resp = await fetch('/api/knowledge-bases', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description: desc })
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            document.getElementById('kbName').value = '';
+            document.getElementById('kbDesc').value = '';
+            showStatus('ragStatus', '✅ 知识库创建成功', 'success');
+            await loadKnowledgeBases();
+        } catch (e) {
+            showStatus('ragStatus', '❌ 创建失败: ' + e.message, 'error');
+        }
+    }
+
+    async function uploadKbFile(id) {
+        const input = document.getElementById('kbFileInput_' + id);
+        const file = input.files[0];
+        if (!file) { showStatus('ragStatus', '请选择文件', 'error'); return; }
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const resp = await fetch('/api/knowledge-bases/' + id + '/upload', {
+                method: 'POST',
+                body: formData
+            });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const result = await resp.json();
-            resultDiv.innerHTML =
-                '<strong style="color:var(--accent2);">❓ 问题：</strong>' + escapeHtml(result.question || q) +
-                '<br><br><strong style="color:var(--accent2);">💡 回答：</strong><br>' + escapeHtml(result.answer || '无结果');
-            showStatus('ragStatus', '✅ 查询完成', 'success');
+            showStatus('ragStatus', '✅ 上传成功！入库 ' + result.chunksIngested + ' 个文档块', 'success');
+            input.value = '';
+            document.getElementById('kbResult_' + id).textContent = '💡 文件已入库，可以提问了';
+            await loadKnowledgeBases();
+        } catch (e) {
+            showStatus('ragStatus', '❌ 上传失败: ' + e.message, 'error');
+        }
+    }
+
+    async function reingestKb(id) {
+        try {
+            const resp = await fetch('/api/knowledge-bases/' + id + '/ingest', { method: 'POST' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const result = await resp.json();
+            showStatus('ragStatus', '✅ 重新入库完成，共 ' + result.chunksIngested + ' 块', 'success');
+            await loadKnowledgeBases();
+        } catch (e) {
+            showStatus('ragStatus', '❌ 入库失败: ' + e.message, 'error');
+        }
+    }
+
+    async function queryKb(id) {
+        const input = document.getElementById('kbQueryInput_' + id);
+        const q = input.value.trim();
+        if (!q) { showStatus('ragStatus', '请输入问题', 'error'); return; }
+        const resultDiv = document.getElementById('kbResult_' + id);
+        resultDiv.textContent = '⏳ 正在检索知识库并生成回答...';
+        try {
+            const resp = await fetch('/api/knowledge-bases/' + id + '/query?question=' + encodeURIComponent(q));
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const result = await resp.json();
+            resultDiv.innerHTML = '<strong style="color:var(--accent2);">💡 回答：</strong><br>' + escapeHtml(result.answer || '无结果');
         } catch (e) {
             resultDiv.textContent = '❌ 查询失败: ' + e.message;
             showStatus('ragStatus', '查询失败: ' + e.message, 'error');
-        } finally {
-            btn.disabled = false; btn.textContent = '🔍';
+        }
+    }
+
+    async function deleteKb(id) {
+        if (!confirm('确定删除该知识库？所有文档向量将被清除，不可恢复。')) return;
+        try {
+            const resp = await fetch('/api/knowledge-bases/' + id, { method: 'DELETE' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            showStatus('ragStatus', '✅ 知识库已删除', 'success');
+            await loadKnowledgeBases();
+        } catch (e) {
+            showStatus('ragStatus', '❌ 删除失败: ' + e.message, 'error');
         }
     }
 

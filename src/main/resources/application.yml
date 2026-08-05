@@ -1,8 +1,6 @@
 spring:
   application:
     name: spring-ai-agent-demo
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local,dev}
 
   ai:
     model:
@@ -23,33 +21,6 @@ spring:
         options:
           model: embedding-2
 
-server:
-  address: 0.0.0.0
-  port: ${SERVER_PORT:8080}
-
-logging:
-  level:
-    org.example.ai: DEBUG
-    org.springframework.ai: INFO
-
----
-spring:
-  config:
-    activate:
-      on-profile: dev
-  autoconfigure:
-    exclude:
-      - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-
-  ai:
     vectorstore:
       pgvector:
         index-type: HNSW
@@ -58,7 +29,16 @@ spring:
         initialize-schema: true
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:rag_db}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5433}/${DB_NAME:rag_db}
+    username: ${DB_USERNAME:springai}
+    password: ${DB_PASSWORD:springai_rag_2024}
     driver-class-name: org.postgresql.Driver
+
+server:
+  address: 0.0.0.0
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    org.example.ai: DEBUG
+    org.springframework.ai: INFO
