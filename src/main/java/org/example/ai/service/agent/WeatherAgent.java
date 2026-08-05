@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -20,7 +21,17 @@ public class WeatherAgent implements IAgent {
     private static final Logger log = LoggerFactory.getLogger(WeatherAgent.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private static final Pattern DAYS_PATTERN = Pattern.compile("(未来|接下来|今后|后面)\\s*(\\d+)\\s*天|(\\d+)\\s*天(?:的)?(?:天气|预报)?");
+    private static final Pattern DAYS_PATTERN = Pattern.compile(
+        "(未来|接下来|今后|后面|最近|近)\\s*(\\d+|[零一二三四五六七八九十廿卅百千万]+)\\s*天|(\\d+|[零一二三四五六七八九十廿卅百千万]+)\\s*天(?:的)?(?:天气|预报)?"
+    );
+
+    private static final Map<String, Integer> CN_NUM = Map.ofEntries(
+        Map.entry("零", 0), Map.entry("一", 1), Map.entry("二", 2), Map.entry("两", 2),
+        Map.entry("三", 3), Map.entry("四", 4), Map.entry("五", 5), Map.entry("六", 6),
+        Map.entry("七", 7), Map.entry("八", 8), Map.entry("九", 9), Map.entry("十", 10),
+        Map.entry("廿", 20), Map.entry("卅", 30), Map.entry("百", 100), Map.entry("千", 1000),
+        Map.entry("万", 10000)
+    );
 
     public WeatherAgent(ChatClient chatClient, WeatherService weatherService) {
         this.chatClient = chatClient;
@@ -78,14 +89,42 @@ public class WeatherAgent implements IAgent {
         Matcher m = DAYS_PATTERN.matcher(input);
         if (m.find()) {
             String daysStr = m.group(2) != null ? m.group(2) : m.group(3);
-            try {
-                int days = Integer.parseInt(daysStr);
-                return Math.min(days, 30);
-            } catch (NumberFormatException e) {
-                return 1;
+            if (daysStr != null) {
+                try {
+                    int days = Integer.parseInt(daysStr);
+                    return Math.min(days, 30);
+                } catch (NumberFormatException e) {
+                    // 中文数字转阿拉伯数字
+                    int days = parseChineseNumber(daysStr);
+                    if (days > 0) return Math.min(days, 30);
+                }
             }
         }
         return 1;
+    }
+
+    private int parseChineseNumber(String s) {
+        // 单字映射
+        Integer val = CN_NUM.get(s);
+        if (val != null) return val;
+
+        // 复合数字：如 "二十三"、"三十五"
+        int result = 0;
+        int current = 0;
+        for (int i = 0; i < s.length(); i++) {
+            String ch = String.valueOf(s.charAt(i));
+            Integer n = CN_NUM.get(ch);
+            if (n == null) continue;
+            if (n >= 10) {
+                if (current == 0) current = 1;
+                result += current * n;
+                current = 0;
+            } else {
+                current = n;
+            }
+        }
+        result += current;
+        return result > 0 ? result : 0;
     }
 
     @Override
