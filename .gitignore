@@ -35,10 +35,12 @@ build/
 .vscode/
 
 ### Mac OS ###
-.DS_Storessh_exec.sh
-.idea/
-target/
-这些
+.DS_Store
+
 ### Secrets ###
 application-local.yml
 application-secrets.yml
+
+### Archives ###
+*.tar.gz
+*.zip

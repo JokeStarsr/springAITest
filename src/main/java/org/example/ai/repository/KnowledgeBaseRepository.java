@@ -70,7 +70,7 @@ public class KnowledgeBaseRepository {
         jdbc.update(conn -> {
             PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO knowledge_bases (name, description, upload_dir) VALUES (?, ?, ?)",
-                Statement.RETURN_GENERATED_KEYS
+                new String[]{"id"}
             );
             ps.setString(1, name);
             ps.setString(2, description);

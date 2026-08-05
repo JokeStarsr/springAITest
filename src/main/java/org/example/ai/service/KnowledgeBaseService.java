@@ -30,7 +30,7 @@ public class KnowledgeBaseService {
     private final ChatClient chatClient;
     private final TokenTextSplitter splitter = new TokenTextSplitter();
 
-    @Value("${app.data-dir:data/knowledge-bases}")
+    @Value("${app.data-dir:/opt/springaitest/data/knowledge-bases}")
     private String dataRoot;
 
     public KnowledgeBaseService(KnowledgeBaseRepository kbRepo, VectorStore vectorStore, ChatClient chatClient) {
@@ -52,14 +52,12 @@ public class KnowledgeBaseService {
     public KnowledgeBase create(String name, String description) {
         String uploadDir = dataRoot + "/" + name;
         long id = kbRepo.create(name, description, uploadDir);
-        KnowledgeBase kb = kbRepo.findById(id);
-        // 创建上传目录
         try {
             Files.createDirectories(Paths.get(uploadDir));
         } catch (IOException e) {
             throw new RuntimeException("无法创建上传目录: " + uploadDir, e);
         }
-        return kb;
+        return kbRepo.findById(id);
     }
 
     public void delete(long id) {
@@ -89,7 +87,6 @@ public class KnowledgeBaseService {
         KnowledgeBase kb = kbRepo.findById(kbId);
         if (kb == null) throw new IllegalArgumentException("知识库不存在: " + kbId);
 
-        // 保存文件到知识库目录
         try {
             Path dir = Paths.get(kb.getUploadDir());
             Files.createDirectories(dir);
@@ -105,7 +102,7 @@ public class KnowledgeBaseService {
             vectorStore.add(chunks);
 
             // 更新文档计数
-            int newCount = countDocs(kbId);
+            int newCount = kb.getDocCount() + 1;
             kbRepo.updateDocCount(kbId, newCount);
             return chunks.size();
         } catch (IOException e) {
@@ -121,6 +118,7 @@ public class KnowledgeBaseService {
         if (!Files.exists(dir)) return 0;
 
         List<Document> all = new ArrayList<>();
+        final long[] fileCount = {0};
         try (var files = Files.walk(dir)) {
             files.filter(Files::isRegularFile)
                  .forEach(path -> {
@@ -129,6 +127,7 @@ public class KnowledgeBaseService {
                          List<Document> docs = reader.get();
                          docs.forEach(d -> d.getMetadata().put("knowledge_base_id", String.valueOf(kbId)));
                          all.addAll(splitter.apply(docs));
+                         fileCount[0]++;
                      } catch (Exception e) {
                          // 跳过无法解析的文件
                      }
@@ -140,8 +139,7 @@ public class KnowledgeBaseService {
         if (!all.isEmpty()) {
             vectorStore.add(all);
         }
-        int count = countDocs(kbId);
-        kbRepo.updateDocCount(kbId, count);
+        kbRepo.updateDocCount(kbId, kb.getDocCount() + (int) fileCount[0]);
         return all.size();
     }
 
@@ -184,14 +182,5 @@ public class KnowledgeBaseService {
                      });
         } catch (IOException ignored) {}
         return files;
-    }
-
-    // ====== 内部方法 ======
-
-    private int countDocs(long kbId) {
-        FilterExpressionBuilder b = new FilterExpressionBuilder();
-        var filter = b.eq("knowledge_base_id", String.valueOf(kbId)).build();
-        // VectorStore 无 count API，通过 list 估算
-        return 0; // 精确计数由上传时维护
     }
 }
