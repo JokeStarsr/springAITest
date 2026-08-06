@@ -42,3 +42,6 @@ logging:
   level:
     org.example.ai: DEBUG
     org.springframework.ai: INFO
+
+app:
+  auto-deploy: true
