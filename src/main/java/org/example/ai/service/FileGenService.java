@@ -273,7 +273,7 @@ public class FileGenService {
         @SuppressWarnings("unchecked")
         List<String> headers = (List<String>) data.get("headers");
         @SuppressWarnings("unchecked")
-        List<List<String>> rows = (List<List<String>>) data.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) data.get("rows");
         String sheetName = (String) data.getOrDefault("title", topic);
 
         SXSSFWorkbook wb = new SXSSFWorkbook(100);
@@ -315,15 +315,19 @@ public class FileGenService {
             int startRow = (headers != null && !headers.isEmpty()) ? 1 : 0;
             for (int r = 0; r < rows.size(); r++) {
                 Row row = sheet.createRow(startRow + r);
-                List<String> rowData = rows.get(r);
+                List<Object> rowData = rows.get(r);
                 for (int c = 0; c < rowData.size(); c++) {
                     Cell cell = row.createCell(c);
-                    String val = rowData.get(c);
-                    // 尝试解析数字
-                    try {
-                        cell.setCellValue(Double.parseDouble(val));
-                    } catch (NumberFormatException e) {
-                        cell.setCellValue(val);
+                    Object val = rowData.get(c);
+                    if (val instanceof Number) {
+                        cell.setCellValue(((Number) val).doubleValue());
+                    } else {
+                        String strVal = String.valueOf(val);
+                        try {
+                            cell.setCellValue(Double.parseDouble(strVal));
+                        } catch (NumberFormatException e) {
+                            cell.setCellValue(strVal);
+                        }
                     }
                     cell.setCellStyle(dataStyle);
                 }
