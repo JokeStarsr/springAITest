@@ -536,6 +536,7 @@
         <button class="tab active" data-target="agent">🤖 Agent 对话</button>
         <button class="tab" data-target="rag">📚 RAG 知识库</button>
         <button class="tab" data-target="stream">⚡ 流式对话</button>
+        <button class="tab" data-target="files">📄 文件生成</button>
     </div>
 
     <!-- ========== Agent 对话面板 ========== -->
@@ -579,7 +580,7 @@
                     <div class="stat-row"><span>输入 Token</span><strong id="usageInput">0</strong></div>
                     <div class="stat-row"><span>输出 Token</span><strong id="usageOutput">0</strong></div>
                     <div class="stat-row"><span>预估费用</span><strong id="usageCost" style="color:#f39c12;">￥0</strong></div>
-                    <div style="font-size:0.65rem;color:var(--text2);margin-top:4px;">模型: deepseek-chat | 输入￥1/M 输出￥2/M</div>
+                    <div style="font-size:0.65rem;color:var(--text2);margin-top:4px;">模型: deepseek-flash | 输入￥1/M 输出￥2/M</div>
                 </div>
                 <button class="btn btn-sm" style="width:100%;margin-top:6px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);" onclick="refreshUsage()">🔄 刷新用量</button>
                 <button class="btn btn-danger btn-block btn-sm" style="margin-top:8px;" onclick="clearAgentChat()">🗑 清空对话</button>
@@ -643,6 +644,52 @@
             </div>
         </div>
     </div>
+
+    <!-- ========== 文件生成面板 ========== -->
+    <div class="panel" id="panel-files">
+        <div class="rag-section">
+            <h3 style="color:var(--accent2);margin-bottom:6px;">📄 AI 文件生成</h3>
+            <div class="hint">输入主题，AI 自动生成内容并创建可下载的 PPT/Word/Excel 文件</div>
+
+            <!-- 文件类型选择 -->
+            <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;" id="fileTypeBtns">
+                <button class="btn file-type-btn active" data-type="pptx" style="flex:1;min-width:80px;background:var(--surface);border:2px solid var(--accent);color:#fff;border-radius:var(--radius-sm);padding:10px;cursor:pointer;font-family:var(--font);font-size:0.85rem;transition:all 0.2s;">
+                    📊 PPT
+                </button>
+                <button class="btn file-type-btn" data-type="docx" style="flex:1;min-width:80px;background:var(--surface2);border:2px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);padding:10px;cursor:pointer;font-family:var(--font);font-size:0.85rem;transition:all 0.2s;">
+                    📝 Word
+                </button>
+                <button class="btn file-type-btn" data-type="xlsx" style="flex:1;min-width:80px;background:var(--surface2);border:2px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);padding:10px;cursor:pointer;font-family:var(--font);font-size:0.85rem;transition:all 0.2s;">
+                    📈 Excel
+                </button>
+            </div>
+
+            <!-- 主题输入 -->
+            <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+                <textarea id="fileTopic" placeholder="输入主题描述，如：2024年AI行业趋势分析报告、员工信息表、项目计划书..."
+                    style="flex:1;min-width:200px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.9rem;font-family:var(--font);resize:vertical;min-height:60px;outline:none;"></textarea>
+                <button class="btn btn-primary" id="fileGenBtn" onclick="generateFile()" style="align-self:flex-end;">🚀 生成文件</button>
+            </div>
+
+            <!-- 快速示例 -->
+            <div style="margin-bottom:16px;">
+                <span style="font-size:0.8rem;color:var(--text2);">💡 快速示例：</span>
+                <button class="example-btn" onclick="useFileExample('2024年中国AI行业发展趋势分析')" style="display:inline-block;width:auto;margin:4px 4px 0 0;">AI行业趋势</button>
+                <button class="example-btn" onclick="useFileExample('员工信息表：姓名、部门、职位、入职日期、薪资')" style="display:inline-block;width:auto;margin:4px 4px 0 0;">员工信息表</button>
+                <button class="example-btn" onclick="useFileExample('Spring Boot微服务架构设计方案')" style="display:inline-block;width:auto;margin:4px 4px 0 0;">技术方案</button>
+            </div>
+
+            <!-- 生成结果 -->
+            <div id="fileGenResult" style="padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);min-height:80px;line-height:1.6;font-size:0.9rem;color:var(--text);display:none;"></div>
+            <div id="fileGenStatus" class="status"></div>
+
+            <!-- 历史文件列表 -->
+            <h3 style="color:var(--accent2);margin-top:20px;margin-bottom:10px;">📂 最近生成的文件</h3>
+            <div id="recentFiles" style="font-size:0.82rem;color:var(--text2);">
+                <div style="text-align:center;padding:20px;color:var(--text2);">生成文件后将在此显示</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- 底部移动导航 -->
@@ -658,6 +705,10 @@
     <button class="nav-item" data-target="stream">
         <span class="nav-icon">⚡</span>
         <span>流式</span>
+    </button>
+    <button class="nav-item" data-target="files">
+        <span class="nav-icon">📄</span>
+        <span>文件</span>
     </button>
 </nav>
 
@@ -1114,6 +1165,116 @@
     function escapeHtml(str) {
         if (str == null) return '';
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ====== 文件生成 ======
+
+    let selectedFileType = 'pptx';
+    const recentFileList = [];
+
+    // 文件类型切换
+    document.querySelectorAll('.file-type-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.file-type-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = 'var(--surface2)';
+                b.style.borderColor = 'var(--border)';
+                b.style.color = 'var(--text2)';
+            });
+            this.classList.add('active');
+            this.style.background = 'var(--surface)';
+            this.style.borderColor = 'var(--accent)';
+            this.style.color = '#fff';
+            selectedFileType = this.dataset.type;
+        });
+    });
+
+    function useFileExample(text) {
+        document.getElementById('fileTopic').value = text;
+        document.getElementById('fileTopic').focus();
+    }
+
+    async function generateFile() {
+        const topic = document.getElementById('fileTopic').value.trim();
+        if (!topic) { showStatus('fileGenStatus', '请输入主题描述', 'error'); return; }
+
+        const btn = document.getElementById('fileGenBtn');
+        const resultDiv = document.getElementById('fileGenResult');
+        btn.disabled = true;
+        btn.textContent = '⏳ 生成中...';
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div style="text-align:center;padding:20px;color:var(--accent);">⏳ AI 正在生成内容，请稍候...</div>';
+        showStatus('fileGenStatus', '正在生成 ' + selectedFileType.toUpperCase() + ' 文件...', 'loading');
+
+        try {
+            const resp = await fetch('/api/files/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: selectedFileType, topic: topic })
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.error || 'HTTP ' + resp.status);
+            }
+
+            // 获取文件名
+            const disposition = resp.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename\*?=(?:UTF-8'')?(.+)/i);
+            const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : 'generated.' + selectedFileType;
+
+            // 下载文件
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            const typeNames = { pptx: 'PPT', docx: 'Word', xlsx: 'Excel' };
+            resultDiv.innerHTML = '<div style="color:var(--success);text-align:center;padding:20px;">✅ 文件生成成功！<br><strong>' + escapeHtml(filename) + '</strong><br><span style="font-size:0.8rem;color:var(--text2);">已自动下载，也可在下方历史列表中重新下载</span></div>';
+            showStatus('fileGenStatus', '✅ ' + typeNames[selectedFileType] + ' 文件生成成功: ' + filename, 'success');
+
+            // 添加到历史
+            recentFileList.unshift({ name: filename, type: selectedFileType, topic: topic, time: nowStr() });
+            if (recentFileList.length > 10) recentFileList.pop();
+            renderRecentFiles();
+
+            // 刷新用量
+            refreshUsage();
+
+        } catch (e) {
+            resultDiv.innerHTML = '<div style="color:var(--danger);text-align:center;padding:20px;">❌ 生成失败: ' + escapeHtml(e.message) + '</div>';
+            showStatus('fileGenStatus', '❌ 生成失败: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🚀 生成文件';
+        }
+    }
+
+    function renderRecentFiles() {
+        const container = document.getElementById('recentFiles');
+        if (recentFileList.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);">生成文件后将在此显示</div>';
+            return;
+        }
+        const icons = { pptx: '📊', docx: '📝', xlsx: '📈' };
+        let html = '';
+        for (const f of recentFileList) {
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:4px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">';
+            html += '<span>' + (icons[f.type] || '📄') + ' <strong>' + escapeHtml(f.name) + '</strong><br><span style="font-size:0.72rem;color:var(--text2);">' + escapeHtml(f.topic.substring(0, 30)) + ' · ' + f.time + '</span></span>';
+            html += '<button class="btn btn-sm" style="background:var(--surface);color:var(--accent2);border:1px solid var(--border);" onclick="reDownload(\'' + escapeHtml(f.name) + '\')">⬇ 下载</button>';
+            html += '</div>';
+        }
+        container.innerHTML = html;
+    }
+
+    function reDownload(filename) {
+        // 文件已下载到本地，提示用户
+        showStatus('fileGenStatus', '💡 文件已在生成时自动下载，如需重新生成请再次点击"生成文件"', 'success');
     }
 </script>
 </body>
