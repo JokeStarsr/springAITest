@@ -2,6 +2,7 @@ package org.example.ai.controller;
 
 import org.example.ai.model.KnowledgeBase;
 import org.example.ai.service.KnowledgeBaseService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -10,6 +11,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/knowledge-bases")
+@ConditionalOnProperty(name = "app.rag.enabled", havingValue = "true")
 public class KnowledgeBaseController {
 
     private final KnowledgeBaseService kbService;

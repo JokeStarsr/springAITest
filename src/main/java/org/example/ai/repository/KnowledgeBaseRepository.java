@@ -1,6 +1,7 @@
 package org.example.ai.repository;
 
 import org.example.ai.model.KnowledgeBase;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
@@ -11,6 +12,7 @@ import java.sql.Timestamp;
 import java.util.List;
 
 @Repository
+@ConditionalOnProperty(name = "app.rag.enabled", havingValue = "true")
 public class KnowledgeBaseRepository {
 
     private final JdbcTemplate jdbc;

@@ -45,3 +45,21 @@ logging:
 
 app:
   auto-deploy: true
+  # RAG 知识库功能开关（服务器环境默认启用，本地无数据库时用 local profile 禁用）
+  rag:
+    enabled: true
+
+# ====== 外部 API 配置 ======
+api:
+  weather:
+    # OpenWeatherMap 免费API: https://openweathermap.org/api
+    # 免费额度: 1000次/天
+    provider: openweathermap
+    key: ${WEATHER_API_KEY:}
+    base-url: https://api.openweathermap.org/data/2.5
+  search:
+    # Brave Search API: https://brave.com/search/api/
+    # 免费额度: 2000次/月
+    provider: brave
+    key: ${SEARCH_API_KEY:}
+    base-url: https://api.search.brave.com/res/v1/web/search

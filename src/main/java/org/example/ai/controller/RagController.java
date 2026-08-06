@@ -2,12 +2,14 @@ package org.example.ai.controller;
 
 import org.example.ai.service.RagService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 @RestController
 @RequestMapping("/rag")
+@ConditionalOnProperty(name = "app.rag.enabled", havingValue = "true")
 public class RagController {
 
     @Autowired
