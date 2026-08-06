@@ -571,7 +571,18 @@
                     <div class="stat-row"><span>对话次数</span><strong id="agentMsgCount">0</strong></div>
                     <div class="stat-row"><span>响应时间</span><strong id="agentRespTime">-</strong></div>
                 </div>
-                <button class="btn btn-danger btn-block btn-sm" style="margin-top:12px;" onclick="clearAgentChat()">🗑 清空对话</button>
+                <!-- 用量统计面板 -->
+                <h3 style="margin-top:14px;">💰 Token 用量</h3>
+                <div id="usagePanel" style="font-size:0.78rem;color:var(--text2);line-height:1.6;">
+                    <div class="stat-row"><span>累计调用</span><strong id="usageCalls">0</strong></div>
+                    <div class="stat-row"><span>总 Token</span><strong id="usageTokens">0</strong></div>
+                    <div class="stat-row"><span>输入 Token</span><strong id="usageInput">0</strong></div>
+                    <div class="stat-row"><span>输出 Token</span><strong id="usageOutput">0</strong></div>
+                    <div class="stat-row"><span>预估费用</span><strong id="usageCost" style="color:#f39c12;">￥0</strong></div>
+                    <div style="font-size:0.65rem;color:var(--text2);margin-top:4px;">模型: deepseek-chat | 输入￥1/M 输出￥2/M</div>
+                </div>
+                <button class="btn btn-sm" style="width:100%;margin-top:6px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);" onclick="refreshUsage()">🔄 刷新用量</button>
+                <button class="btn btn-danger btn-block btn-sm" style="margin-top:8px;" onclick="clearAgentChat()">🗑 清空对话</button>
                 <div id="agentStatus" class="status"></div>
             </div>
         </div>
@@ -672,6 +683,7 @@
 
         loadAvailableAgents();
         loadKnowledgeBases();
+        refreshUsage();
 
         // 桌面端 Tab 切换
         document.querySelectorAll('#tabsDesktop .tab').forEach(tab => {
@@ -829,6 +841,9 @@
             }
 
             botDiv.querySelector('.message-content').innerHTML = text.replace(/\n/g, '<br>') + metaHtml;
+
+            // 更新用量面板
+            if (result.usage) updateUsageDisplay(result.usage);
         } catch (e) {
             botDiv.querySelector('.message-content').textContent = '❌ 请求失败: ' + (e.name === 'AbortError' ? '超时' : e.message);
             showStatus('agentStatus', '请求失败: ' + e.message, 'error');
@@ -862,6 +877,33 @@
         agentMsgCount = 0;
         document.getElementById('agentMsgCount').textContent = '0';
         document.getElementById('agentRespTime').textContent = '-';
+    }
+
+    // ====== 用量统计 ======
+
+    async function refreshUsage() {
+        try {
+            const resp = await fetch('/api/usage/stats');
+            if (resp.ok) {
+                const data = await resp.json();
+                updateUsageDisplay(data);
+            }
+        } catch (e) { console.error('加载用量失败:', e); }
+    }
+
+    function updateUsageDisplay(data) {
+        if (!data) return;
+        document.getElementById('usageCalls').textContent = data.totalCalls || 0;
+        document.getElementById('usageTokens').textContent = formatNumber(data.totalTokens || 0);
+        document.getElementById('usageInput').textContent = formatNumber(data.totalInputTokens || 0);
+        document.getElementById('usageOutput').textContent = formatNumber(data.totalOutputTokens || 0);
+        document.getElementById('usageCost').textContent = '￥' + (data.totalCostYuan || '0');
+    }
+
+    function formatNumber(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return String(n);
     }
 
     // ====== 知识库管理 ======

@@ -2,6 +2,7 @@ package org.example.ai.controller;
 
 import org.example.ai.agent.core.AgentContext;
 import org.example.ai.agent.impl.CoordinatorAgent;
+import org.example.ai.service.UsageTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ import java.util.*;
 public class AgentController {
 
     private final CoordinatorAgent coordinator;
+    private final UsageTracker usageTracker;
     private static final Logger log = LoggerFactory.getLogger(AgentController.class);
 
     // 保存最近的会话上下文（用于演示，生产环境应使用 Redis 等）
@@ -26,8 +28,9 @@ public class AgentController {
         }
     };
 
-    public AgentController(CoordinatorAgent coordinator) {
+    public AgentController(CoordinatorAgent coordinator, UsageTracker usageTracker) {
         this.coordinator = coordinator;
+        this.usageTracker = usageTracker;
     }
 
     /**
@@ -47,6 +50,9 @@ public class AgentController {
         String result = coordinator.execute(task);
         long duration = System.currentTimeMillis() - startTime;
 
+        // 记录用量
+        usageTracker.record("agent/process", task, result, duration);
+
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("content", result);
         response.put("type", "agent_coordinated");
@@ -54,6 +60,7 @@ public class AgentController {
         response.put("duration", duration + "ms");
         response.put("executionLog", context.getExecutionLog());
         response.put("sharedData", context.snapshot());
+        response.put("usage", usageTracker.getStats()); // 附带用量统计
         return response;
     }
 
@@ -73,6 +80,9 @@ public class AgentController {
         String result = coordinator.execute(task);
         long duration = System.currentTimeMillis() - startTime;
 
+        // 记录用量
+        usageTracker.record("agent/execute/" + agentName, task, result, duration);
+
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("content", result);
         response.put("type", "agent_direct");
@@ -80,6 +90,7 @@ public class AgentController {
         response.put("sessionId", sessionId);
         response.put("duration", duration + "ms");
         response.put("executionLog", context.getExecutionLog());
+        response.put("usage", usageTracker.getStats()); // 附带用量统计
         return response;
     }
 

@@ -1,5 +1,6 @@
 package org.example.ai.controller;
 
+import org.example.ai.service.UsageTracker;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -9,15 +10,19 @@ import reactor.core.publisher.Flux;
 @RestController
 public class FastAiController {
     @Autowired
-    private ChatClient chatClient; // 启动时自动配置
+    private ChatClient chatClient;
+    @Autowired
+    private UsageTracker usageTracker;
 
     @GetMapping("/chat")
     public String chat(@RequestParam String msg) {
-        return  chatClient.prompt()
+        long start = System.currentTimeMillis();
+        String result = chatClient.prompt()
                 .user(msg)
                 .call()
                 .content();
-        // 平均延迟：135ms
+        usageTracker.record("/chat", msg, result, System.currentTimeMillis() - start);
+        return result;
     }
 
     /**
@@ -25,11 +30,14 @@ public class FastAiController {
      */
     @PostMapping("/chat/context")
     public String chatWithContext(@RequestBody ChatRequest request) {
-        return chatClient.prompt()
+        long start = System.currentTimeMillis();
+        String result = chatClient.prompt()
                 .system("你是一个专业的助手，请用中文回答问题")
                 .user(request.getMessage())
                 .call()
                 .content();
+        usageTracker.record("/chat/context", request.getMessage(), result, System.currentTimeMillis() - start);
+        return result;
     }
 
     /**
