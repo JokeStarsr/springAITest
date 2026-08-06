@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.*;
 
 /**
- * 文件生成服务 - 使用 AI 生成内容，Apache POI 创建 PPT/Word/Excel 文件
+ * 文件生成服务 -使用 AI 生成内容，Apache POI 创建 PPT/Word/Excel 文件
  */
 @Service
 public class FileGenService {
