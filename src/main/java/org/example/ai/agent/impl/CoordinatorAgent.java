@@ -36,6 +36,13 @@ public class CoordinatorAgent extends BaseAgent {
     public String execute(String userInput) {
         context.log("Coordinator 开始协调处理任务: " + userInput);
 
+        // 0. 快速路由：根据关键词直接匹配，避免 LLM 误判
+        List<TaskAssignment> quickAssignments = quickRoute(userInput);
+        if (!quickAssignments.isEmpty()) {
+            context.log("快速路由: " + quickAssignments.size() + " 个子任务");
+            return executeAssignments(quickAssignments, userInput);
+        }
+
         // 1. 分析任务，决定是否需要分解
         String plan = analyzeTask(userInput);
         context.log("任务分析: " + truncate(plan, 200));
@@ -48,6 +55,37 @@ public class CoordinatorAgent extends BaseAgent {
             // 无法分解，直接处理
             return super.execute(userInput);
         }
+
+        return executeAssignments(assignments, userInput);
+    }
+
+    /** 快速路由：根据关键词直接匹配Agent */
+    private List<TaskAssignment> quickRoute(String input) {
+        List<TaskAssignment> result = new ArrayList<>();
+        boolean hasWeather = input.contains("天气") || input.contains("温度") || input.contains("气温") 
+                          || input.contains("下雨") || input.contains("刮风") || input.contains("出行");
+        boolean hasWrite = input.contains("写") || input.contains("撰写") || input.contains("文章") 
+                        || input.contains("文案") || input.contains("报告") || input.contains("方案");
+        boolean hasResearch = input.contains("研究") || input.contains("分析") || input.contains("搜索") 
+                           || input.contains("调查") || input.contains("原理");
+
+        if (hasWeather && (hasResearch || hasWrite)) {
+            // 多关键词：需要 LLM 分析
+            return result;
+        }
+        if (hasWeather) {
+            result.add(new TaskAssignment("weather-agent", "天气查询", input));
+            return result;
+        }
+        if (hasWrite && !hasResearch) {
+            result.add(new TaskAssignment("writing-agent", "写作任务", input));
+            return result;
+        }
+        return result;
+    }
+
+    /** 执行任务分配列表 */
+    private String executeAssignments(List<TaskAssignment> assignments, String userInput) {
 
         // 3. 顺序执行子任务（Agent 间通过 context 共享数据）
         List<String> subResults = new ArrayList<>();
@@ -90,10 +128,16 @@ public class CoordinatorAgent extends BaseAgent {
         String agentsDesc = buildAgentsDescription();
         return chatClient.prompt()
             .system("""
-                你是一个任务协调专家。分析用户任务，判断是否需要多个Agent协作。
+                你是一个任务协调专家。分析用户任务，决定由哪个Agent来处理。
 
-                可用Agent:
+                可用的专业Agent（必须从以下选择）:
                 %s
+
+                重要规则:
+                1. 天气查询、温度比较、出行建议 → 必须使用 weather-agent
+                2. 深度研究、数据分析、搜索 → 必须使用 research-agent
+                3. 写作、文案、文章 → 必须使用 writing-agent
+                4. 复杂任务可分解为多个Agent协作
 
                 请按以下格式输出执行计划（每行一个子任务）:
                 AGENT: <agent-name> | SUBJECT: <主题> | TASK: <具体任务描述>

@@ -70,7 +70,7 @@ public class WebSearchSkill implements Skill {
 
         String[] results = new String[count];
         for (int i = 0; i < count; i++) {
-            int idx = (query.hashCode() + i * 7) % topics.length;
+            int idx = Math.floorMod(query.hashCode() + i * 7, topics.length);
             results[i] = "【" + topics[idx][0] + "】" + topics[idx][1];
         }
         return results;
