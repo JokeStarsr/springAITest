@@ -556,15 +556,17 @@
             </div>
             <div class="side-panel">
                 <select id="agentSelect">
-                    <option value="auto">🤖 智能路由（自动）</option>
+                    <option value="auto">🤖 智能路由（自动协调）</option>
                 </select>
+                <h3>🧠 Agent 技能矩阵</h3>
+                <div id="agentSkills" style="font-size:0.78rem;color:var(--text2);margin-bottom:10px;line-height:1.5;">⏳ 加载中...</div>
                 <h3>💡 快速示例</h3>
                 <button class="example-btn" onclick="useAgentExample('北京今天天气怎么样？')">🌤️ 北京今天天气怎么样？</button>
-                <button class="example-btn" onclick="useAgentExample('分析人工智能的发展趋势')">🔬 分析人工智能的发展趋势</button>
-                <button class="example-btn" onclick="useAgentExample('帮我写一篇关于春天的散文')">✍️ 帮我写一篇关于春天的散文</button>
-                <button class="example-btn" onclick="useAgentExample('上海明天会下雨吗？')">🌤️ 上海明天会下雨吗？</button>
-                <button class="example-btn" onclick="useAgentExample('研究新能源车的原理')">🔬 研究新能源车的原理</button>
-                <button class="example-btn" onclick="useAgentExample('撰写项目周报模板')">✍️ 撰写项目周报模板</button>
+                <button class="example-btn" onclick="useAgentExample('未来十天上海天气，要和北京对比温度')">🔬 未来十天上海天气对比北京</button>
+                <button class="example-btn" onclick="useAgentExample('帮我写一篇关于AI发展的文章，500字')">✍️ 写一篇关于AI发展的文章</button>
+                <button class="example-btn" onclick="useAgentExample('研究新能源车的原理和趋势')">🔬 研究新能源车的原理和趋势</button>
+                <button class="example-btn" onclick="useAgentExample('计算 156*23+45/9 的结果')">🧮 计算 156*23+45/9</button>
+                <button class="example-btn" onclick="useAgentExample('分析这段文字的情感：今天天气真好，心情很愉快！')">📊 分析文字情感</button>
                 <div style="margin-top:12px;">
                     <div class="stat-row"><span>对话次数</span><strong id="agentMsgCount">0</strong></div>
                     <div class="stat-row"><span>响应时间</span><strong id="agentRespTime">-</strong></div>
@@ -720,13 +722,29 @@
             if (resp.ok) {
                 const agents = await resp.json();
                 const sel = document.getElementById('agentSelect');
-                const icons = { 'weather-agent': '🌤️', 'research-agent': '🔬', 'writing-agent': '✍️' };
-                Object.keys(agents).forEach(name => {
+                const skillDiv = document.getElementById('agentSkills');
+                let skillHtml = '';
+
+                for (const agent of agents) {
+                    // 添加下拉选项
                     const opt = document.createElement('option');
-                    opt.value = name;
-                    opt.textContent = (icons[name] || '🤖') + ' ' + name + ' - ' + agents[name];
+                    opt.value = agent.name;
+                    const icons = { 'weather-agent': '🌤️', 'research-agent': '🔬', 'writing-agent': '✍️' };
+                    opt.textContent = (icons[agent.name] || '🤖') + ' ' + agent.name + ' - ' + (agent.description || '').substring(0, 30);
                     sel.appendChild(opt);
-                });
+
+                    // 构建技能矩阵
+                    skillHtml += '<div style="margin-bottom:8px;padding:6px 8px;background:var(--surface2);border-radius:6px;border-left:2px solid var(--accent);">';
+                    skillHtml += '<strong style="color:var(--accent);">' + (icons[agent.name] || '🤖') + ' ' + agent.name + '</strong><br>';
+                    if (agent.skills) {
+                        for (const sk of agent.skills) {
+                            skillHtml += '<span style="color:var(--accent2);font-size:0.7rem;">▸ ' + sk.name + '</span> ';
+                            skillHtml += '<span style="font-size:0.7rem;">' + (sk.description || '').substring(0, 40) + '</span><br>';
+                        }
+                    }
+                    skillHtml += '</div>';
+                }
+                skillDiv.innerHTML = skillHtml;
             }
         } catch (e) { console.error('加载Agents失败:', e); }
     }
@@ -746,11 +764,12 @@
         if (!msg) { showStatus('agentStatus', '请输入消息', 'error'); return; }
         addAgentMessage(msg, 'user');
         input.value = ''; input.style.height = 'auto';
-        const botDiv = addAgentMessage('', 'bot', true);
+        const agentVal = document.getElementById('agentSelect').value;
+        const agentLabel = agentVal === 'auto' ? '🤖 智能协调' : agentVal.replace('weather-agent','🌤️ 天气Agent').replace('research-agent','🔬 研究Agent').replace('writing-agent','✍️ 写作Agent');
+        const botDiv = addAgentMessage('', 'bot', true, agentLabel);
         const startTime = Date.now();
         agentMsgCount++;
         document.getElementById('agentMsgCount').textContent = agentMsgCount;
-        const agentVal = document.getElementById('agentSelect').value;
         let url, data;
         if (agentVal === 'auto') {
             url = '/api/agent/process'; data = { task: msg };
@@ -759,7 +778,7 @@
         }
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000);
+            const timeoutId = setTimeout(() => controller.abort(), 120000);
             const resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -771,12 +790,45 @@
             const result = await resp.json();
             const duration = ((Date.now() - startTime) / 1000).toFixed(2);
             document.getElementById('agentRespTime').textContent = duration + 's';
-            let text;
-            if (typeof result === 'string') text = result;
-            else if (result && result.content) text = result.content;
-            else if (result && result.error) text = '❌ ' + result.error;
-            else text = JSON.stringify(result, null, 2);
-            botDiv.querySelector('.message-content').textContent = text;
+
+            let text = result.content || (typeof result === 'string' ? result : JSON.stringify(result, null, 2));
+
+            // 构建底部元信息栏
+            let metaHtml = '<div style="margin-top:10px;font-size:0.72rem;color:var(--text2);display:flex;gap:12px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:8px;">';
+            metaHtml += '<span>⏱ ' + duration + 's</span>';
+            if (result.type) metaHtml += '<span>🔀 ' + escapeHtml(result.type) + '</span>';
+            if (agentVal) metaHtml += '<span>🤖 Agent: ' + escapeHtml(agentVal) + '</span>';
+            metaHtml += '</div>';
+
+            // 添加执行日志折叠区（带彩色步骤标记）
+            if (result.executionLog && result.executionLog.length > 0) {
+                let logHtml = '';
+                for (const entry of result.executionLog) {
+                    const e = escapeHtml(entry);
+                    let cls = '';
+                    if (e.includes('Coordinator')) cls = 'color:#f39c12;';
+                    else if (e.includes('消息:')) cls = 'color:#00cec9;';
+                    else if (e.includes('技能')) cls = 'color:#6c5ce7;';
+                    else if (e.includes('完成')) cls = 'color:#00b894;';
+                    logHtml += '<span style="' + cls + '">' + e + '</span>\n';
+                }
+                metaHtml += '<details style="margin-top:6px;">';
+                metaHtml += '<summary style="cursor:pointer;color:var(--accent);">📋 执行日志 (' + result.executionLog.length + ' 步)</summary>';
+                metaHtml += '<pre style="margin-top:4px;font-size:0.68rem;white-space:pre-wrap;max-height:200px;overflow-y:auto;">' + logHtml + '</pre></details>';
+            }
+
+            // 添加共享数据展示
+            if (result.sharedData && Object.keys(result.sharedData).length > 0) {
+                let sdHtml = '';
+                for (const [k, v] of Object.entries(result.sharedData)) {
+                    sdHtml += '<span style="color:var(--accent2);">' + escapeHtml(k) + '</span>: ' + escapeHtml(String(v).substring(0, 80)) + '<br>';
+                }
+                metaHtml += '<details style="margin-top:4px;">';
+                metaHtml += '<summary style="cursor:pointer;color:var(--accent);">🔗 共享数据</summary>';
+                metaHtml += '<div style="font-size:0.68rem;margin-top:2px;">' + sdHtml + '</div></details>';
+            }
+
+            botDiv.querySelector('.message-content').innerHTML = text.replace(/\n/g, '<br>') + metaHtml;
         } catch (e) {
             botDiv.querySelector('.message-content').textContent = '❌ 请求失败: ' + (e.name === 'AbortError' ? '超时' : e.message);
             showStatus('agentStatus', '请求失败: ' + e.message, 'error');
@@ -786,14 +838,15 @@
         }
     }
 
-    function addAgentMessage(text, sender, showTyping) {
+    function addAgentMessage(text, sender, showTyping, agentLabel) {
         const box = document.getElementById('agentMessages');
         const div = document.createElement('div');
         div.className = 'message ' + sender + '-message';
         if (sender === 'user') {
             div.innerHTML = '<strong>👤 您</strong>' + escapeHtml(text) + '<div class="message-time">' + nowStr() + '</div>';
         } else {
-            div.innerHTML = '<strong>🤖 AI 助手</strong><span class="message-content">' + escapeHtml(text) + '</span>' +
+            const label = agentLabel || '🤖 AI 助手';
+            div.innerHTML = '<strong>' + label + '</strong><span class="message-content">' + escapeHtml(text) + '</span>' +
                 (showTyping ? '<span class="typing-indicator"><span></span><span></span><span></span></span>' : '') +
                 '<div class="message-time">' + nowStr() + '</div>';
         }
