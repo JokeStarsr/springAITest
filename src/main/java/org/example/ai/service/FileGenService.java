@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xslf.usermodel.*;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xwpf.usermodel.*;
 import org.slf4j.Logger;
@@ -279,7 +280,7 @@ public class FileGenService {
         String sheetName = (String) data.getOrDefault("title", topic);
 
         SXSSFWorkbook wb = new SXSSFWorkbook(100);
-        Sheet sheet = wb.createSheet(sheetName);
+        SXSSFSheet sheet = wb.createSheet(sheetName);
 
         // 样式
         CellStyle headerStyle = wb.createCellStyle();
