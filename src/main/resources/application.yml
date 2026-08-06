@@ -12,7 +12,7 @@ spring:
       base-url: https://api.deepseek.com
       chat:
         options:
-          model: deepseek-flash
+          model: deepseek-v4-flash
           temperature: 0.7
 
     zhipuai:

@@ -84,7 +84,7 @@ public class UsageTracker {
         stats.put("totalTokens", totalTokens.get());
         stats.put("totalCostYuan", String.format("%.4f", totalCostFen.get() / 100.0));
         stats.put("totalCostFen", totalCostFen.get());
-        stats.put("modelName", "deepseek-flash");
+        stats.put("modelName", "deepseek-v4-flash");
         stats.put("pricing", "输入￥1/M tokens, 输出￥2/M tokens");
         stats.put("recentRecords", getRecentRecords());
         return stats;
