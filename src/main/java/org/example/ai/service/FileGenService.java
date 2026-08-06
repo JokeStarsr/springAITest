@@ -3,7 +3,6 @@ package org.example.ai.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xslf.usermodel.*;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
@@ -13,8 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
-import java.awt.*;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
@@ -113,7 +110,7 @@ public class FileGenService {
         XSLFTextRun tr = tp.addNewTextRun();
         tr.setText(title);
         tr.setFontSize(36.0);
-        tr.setFontColor(new Color(30, 30, 60));
+        tr.setFontColor(new java.awt.Color(30, 30, 60));
         tr.setBold(true);
 
         XSLFTextBox subBox = slide.createTextBox();
@@ -123,10 +120,10 @@ public class FileGenService {
         XSLFTextRun sr = sp.addNewTextRun();
         sr.setText(subtitle);
         sr.setFontSize(18.0);
-        sr.setFontColor(new Color(120, 120, 150));
+        sr.setFontColor(new java.awt.Color(120, 120, 150));
 
         // 背景色
-        slide.getBackground().setFillColor(new Color(240, 245, 255));
+        slide.getBackground().setFillColor(new java.awt.Color(240, 245, 255));
     }
 
     private void createContentSlide(XSLFSlide slide, String title, String points) {
@@ -138,14 +135,14 @@ public class FileGenService {
         XSLFTextRun tr = tp.addNewTextRun();
         tr.setText(title != null ? title : "");
         tr.setFontSize(28.0);
-        tr.setFontColor(new Color(30, 30, 60));
+        tr.setFontColor(new java.awt.Color(30, 30, 60));
         tr.setBold(true);
 
         // 分隔线
         XSLFAutoShape line = slide.createAutoShape();
         line.setShapeType(org.apache.poi.sl.usermodel.ShapeType.RECT);
         line.setAnchor(new java.awt.Rectangle(60, 105, 840, 3));
-        line.setFillColor(new Color(100, 100, 200));
+        line.setFillColor(new java.awt.Color(100, 100, 200));
 
         // 内容
         XSLFTextBox contentBox = slide.createTextBox();
@@ -160,7 +157,7 @@ public class FileGenService {
                 XSLFTextRun pr = pp.addNewTextRun();
                 pr.setText(trimmed);
                 pr.setFontSize(20.0);
-                pr.setFontColor(new Color(60, 60, 80));
+                pr.setFontColor(new java.awt.Color(60, 60, 80));
             }
         }
     }
@@ -173,9 +170,9 @@ public class FileGenService {
         XSLFTextRun tr = tp.addNewTextRun();
         tr.setText(text);
         tr.setFontSize(40.0);
-        tr.setFontColor(new Color(100, 100, 200));
+        tr.setFontColor(new java.awt.Color(100, 100, 200));
         tr.setBold(true);
-        slide.getBackground().setFillColor(new Color(245, 248, 255));
+        slide.getBackground().setFillColor(new java.awt.Color(245, 248, 255));
     }
 
     // ===== DOCX =====
