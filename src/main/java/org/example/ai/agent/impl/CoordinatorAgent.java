@@ -1,13 +1,12 @@
 package org.example.ai.agent.impl;
 
+import org.example.ai.agent.FastChatModelFactory;
 import org.example.ai.agent.core.*;
 import org.example.ai.agent.skill.WebSearchSkill;
 import org.example.ai.service.UsageTracker;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +25,7 @@ public class CoordinatorAgent extends BaseAgent {
     private final boolean fastEnabled;
 
     public CoordinatorAgent(ChatClient chatClient,
-                            @Qualifier("fastChatModel") ChatModel fastChatModel,
+                            FastChatModelFactory fastChatModelFactory,
                             @Value("${app.fast-model-enabled:false}") boolean fastEnabled,
                             UsageTracker usageTracker, WebSearchSkill webSearchSkill,
                             WeatherAgent weatherAgent, ResearchAgent researchAgent,
@@ -35,8 +34,8 @@ public class CoordinatorAgent extends BaseAgent {
             "任务协调专家，负责分析复杂任务，拆解为子任务，分派给专业的子Agent执行，并汇总结果为最终输出。");
         addSkill(webSearchSkill);
 
-        this.fastEnabled = fastEnabled && fastChatModel != null;
-        this.fastChatClient = this.fastEnabled ? ChatClient.builder(fastChatModel).build() : chatClient;
+        this.fastEnabled = fastEnabled;
+        this.fastChatClient = this.fastEnabled ? ChatClient.builder(fastChatModelFactory.create()).build() : chatClient;
 
         this.subAgents = new LinkedHashMap<>();
         this.subAgents.put(weatherAgent.getName(), weatherAgent);
