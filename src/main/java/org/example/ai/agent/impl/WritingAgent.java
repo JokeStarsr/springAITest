@@ -1,8 +1,10 @@
 package org.example.ai.agent.impl;
 
+import org.example.ai.agent.core.AgentContext;
 import org.example.ai.agent.core.BaseAgent;
 import org.example.ai.agent.skill.TextAnalysisSkill;
 import org.example.ai.agent.skill.WebSearchSkill;
+import org.example.ai.service.UsageTracker;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
@@ -13,17 +15,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class WritingAgent extends BaseAgent {
 
-    public WritingAgent(ChatClient chatClient, TextAnalysisSkill textAnalysisSkill,
+    public WritingAgent(ChatClient chatClient, UsageTracker usageTracker, TextAnalysisSkill textAnalysisSkill,
                         WebSearchSkill webSearchSkill) {
-        super(chatClient, "writing-agent",
+        super(chatClient, usageTracker, "writing-agent",
             "专业写作助手，可撰写各类文档（报告、方案、文章、邮件、PPT大纲等），善用搜索获取素材，分析文本质量。");
         addSkill(textAnalysisSkill);
         addSkill(webSearchSkill);
     }
 
     @Override
-    public String execute(String userInput) {
-        // 从上下文获取写作素材
+    public String execute(String userInput, AgentContext context) {
         if (context != null) {
             String sourceMaterial = context.get("source_material");
             if (sourceMaterial != null) {
@@ -34,6 +35,6 @@ public class WritingAgent extends BaseAgent {
                 userInput = userInput + "\n[目标受众] " + targetAudience;
             }
         }
-        return super.execute(userInput);
+        return super.execute(userInput, context);
     }
 }

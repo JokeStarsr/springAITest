@@ -2,26 +2,41 @@ package org.example.ai.agent.impl;
 
 import org.example.ai.agent.core.*;
 import org.example.ai.agent.skill.WebSearchSkill;
+import org.example.ai.service.UsageTracker;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 
 /**
  * 协调 Agent（元 Agent）- 负责拆解复杂任务，分派给子 Agent，汇总结果。
- * 这是真正的"Agent 之 Agent"，是系统的核心调度器。
+ * 无状态单例：会话上下文始终以参数传递，杜绝并发串台。
+ * 协调/汇总/计划等结构任务可走 fast 模型（app.fast-model-enabled=true 开启），降低成本。
  */
 @Component
 public class CoordinatorAgent extends BaseAgent {
 
     private final Map<String, BaseAgent> subAgents;
+    private final ChatClient fastChatClient;
+    private final boolean fastEnabled;
 
-    public CoordinatorAgent(ChatClient chatClient, WebSearchSkill webSearchSkill,
+    public CoordinatorAgent(ChatClient chatClient,
+                            @Qualifier("fastChatModel") ChatModel fastChatModel,
+                            @Value("${app.fast-model-enabled:false}") boolean fastEnabled,
+                            UsageTracker usageTracker, WebSearchSkill webSearchSkill,
                             WeatherAgent weatherAgent, ResearchAgent researchAgent,
                             WritingAgent writingAgent) {
-        super(chatClient, "coordinator",
+        super(chatClient, usageTracker, "coordinator",
             "任务协调专家，负责分析复杂任务，拆解为子任务，分派给专业的子Agent执行，并汇总结果为最终输出。");
         addSkill(webSearchSkill);
+
+        this.fastEnabled = fastEnabled && fastChatModel != null;
+        this.fastChatClient = this.fastEnabled ? ChatClient.builder(fastChatModel).build() : chatClient;
 
         this.subAgents = new LinkedHashMap<>();
         this.subAgents.put(weatherAgent.getName(), weatherAgent);
@@ -29,48 +44,42 @@ public class CoordinatorAgent extends BaseAgent {
         this.subAgents.put(writingAgent.getName(), writingAgent);
     }
 
-    /**
-     * 协调执行：分解任务 → 分派 → 汇总
-     */
     @Override
-    public String execute(String userInput) {
+    public String execute(String userInput, AgentContext context) {
         context.log("Coordinator 开始协调处理任务: " + userInput);
 
-        // 0. 快速路由：根据关键词直接匹配，避免 LLM 误判
         List<TaskAssignment> quickAssignments = quickRoute(userInput);
         if (!quickAssignments.isEmpty()) {
             context.log("快速路由: " + quickAssignments.size() + " 个子任务");
-            return executeAssignments(quickAssignments, userInput);
+            return executeAssignments(quickAssignments, userInput, context);
         }
 
-        // 1. 分析任务，决定是否需要分解
-        String plan = analyzeTask(userInput);
+        String plan = analyzeTask(userInput, context);
         context.log("任务分析: " + truncate(plan, 200));
 
-        // 2. 提取子任务和对应的 Agent
         List<TaskAssignment> assignments = parseAssignments(plan, userInput);
         context.log("分解为 " + assignments.size() + " 个子任务");
 
         if (assignments.isEmpty()) {
-            // 无法分解，直接处理
-            return super.execute(userInput);
+            return super.execute(userInput, context);
         }
-
-        return executeAssignments(assignments, userInput);
+        return executeAssignments(assignments, userInput, context);
     }
 
-    /** 快速路由：根据关键词直接匹配Agent */
-    private List<TaskAssignment> quickRoute(String input) {
+    /**
+     * 快速路由：纯函数，按关键词直接匹配 Agent，避免 LLM 误判与无谓成本。
+     * 公开供离线单测（E9）。
+     */
+    public static List<TaskAssignment> quickRoute(String input) {
         List<TaskAssignment> result = new ArrayList<>();
-        boolean hasWeather = input.contains("天气") || input.contains("温度") || input.contains("气温") 
+        boolean hasWeather = input.contains("天气") || input.contains("温度") || input.contains("气温")
                           || input.contains("下雨") || input.contains("刮风") || input.contains("出行");
-        boolean hasWrite = input.contains("写") || input.contains("撰写") || input.contains("文章") 
+        boolean hasWrite = input.contains("写") || input.contains("撰写") || input.contains("文章")
                         || input.contains("文案") || input.contains("报告") || input.contains("方案");
-        boolean hasResearch = input.contains("研究") || input.contains("分析") || input.contains("搜索") 
+        boolean hasResearch = input.contains("研究") || input.contains("分析") || input.contains("搜索")
                            || input.contains("调查") || input.contains("原理");
 
         if (hasWeather && (hasResearch || hasWrite)) {
-            // 多关键词：需要 LLM 分析
             return result;
         }
         if (hasWeather) {
@@ -85,9 +94,7 @@ public class CoordinatorAgent extends BaseAgent {
     }
 
     /** 执行任务分配列表 */
-    private String executeAssignments(List<TaskAssignment> assignments, String userInput) {
-
-        // 3. 顺序执行子任务（Agent 间通过 context 共享数据）
+    private String executeAssignments(List<TaskAssignment> assignments, String userInput, AgentContext context) {
         List<String> subResults = new ArrayList<>();
         for (TaskAssignment ta : assignments) {
             BaseAgent agent = subAgents.get(ta.agentName);
@@ -96,37 +103,28 @@ public class CoordinatorAgent extends BaseAgent {
                 continue;
             }
 
-            // 设置共享上下文
-            agent.setContext(context);
-
-            // 发送跨 Agent 消息
             context.sendMessage(AgentMessage.request(
                 "coordinator", ta.agentName, ta.subject, ta.task));
 
-            // 执行
             context.log("分派给 " + ta.agentName + ": " + ta.task);
-            String result = agent.execute(ta.task);
+            String result = agent.execute(ta.task, context);
             subResults.add("[" + ta.agentName + "] " + result);
 
-            // 结果写入共享上下文
             context.put(ta.agentName + "_result", result);
             context.put("last_result", result);
 
-            // 发送完成消息
             context.sendMessage(AgentMessage.result(
                 ta.agentName, "coordinator", ta.subject, truncate(result, 200)));
         }
 
-        // 4. 汇总所有子任务结果
-        String summary = aggregateResults(userInput, subResults);
-        context.log("任务汇总完成");
-        return summary;
+        return aggregateResults(userInput, subResults, context);
     }
 
     /** 让 LLM 分析任务并生成执行计划 */
-    private String analyzeTask(String userInput) {
+    private String analyzeTask(String userInput, AgentContext context) {
         String agentsDesc = buildAgentsDescription();
-        return chatClient.prompt()
+        long start = System.currentTimeMillis();
+        ChatResponse response = fastChatClient.prompt()
             .system("""
                 你是一个任务协调专家。分析用户任务，决定由哪个Agent来处理。
 
@@ -145,16 +143,43 @@ public class CoordinatorAgent extends BaseAgent {
                 如果任务简单不需要分解，输出: DIRECT: <直接回答>
                 """.formatted(agentsDesc))
             .user("用户任务: " + userInput)
-            .call().content();
+            .call()
+            .chatResponse();
+        recordChatUsage("coordinator.analyze", userInput, start, response);
+        return response.getResult() != null ? response.getResult().getOutput().getText() : "";
     }
 
+    /** 汇总多个 Agent 的结果 */
+    private String aggregateResults(String originalInput, List<String> subResults, AgentContext context) {
+        String combined = String.join("\n\n", subResults);
+        long start = System.currentTimeMillis();
+        ChatResponse response = fastChatClient.prompt()
+            .system("你是一个结果汇总专家。请将多个Agent的执行结果整合为一份完整的最终回答。")
+            .user("原始任务: " + originalInput + "\n\n各Agent执行结果:\n" + combined + "\n\n请生成一份完整、连贯的最终回答。")
+            .call()
+            .chatResponse();
+        recordChatUsage("coordinator.aggregate", originalInput, start, response);
+        return response.getResult() != null ? response.getResult().getOutput().getText() : "";
+    }
+
+    private void recordChatUsage(String endpoint, String input, long start, ChatResponse response) {
+        Usage usage = response.getMetadata() != null ? response.getMetadata().getUsage() : null;
+        long in = -1, out = -1;
+        if (usage != null) {
+            in = usage.getPromptTokens() != null ? usage.getPromptTokens() : -1;
+            out = usage.getCompletionTokens() != null ? usage.getCompletionTokens() : -1;
+        }
+        usageTracker.recordWithUsage(endpoint, input, "", System.currentTimeMillis() - start, in, out);
+    }
+
+    /** 解析 LLM 输出计划（兼容中英文冒号/全角竖线） */
     private List<TaskAssignment> parseAssignments(String plan, String originalInput) {
         List<TaskAssignment> assignments = new ArrayList<>();
         for (String line : plan.split("\\n")) {
             line = line.trim();
             if (line.startsWith("AGENT:") || line.startsWith("AGENT：")) {
                 String content = line.replaceFirst("AGENT[：:]\\s*", "");
-                String[] parts = content.split("\\|");
+                String[] parts = content.split("[|｜]");
                 String agentName = "";
                 String subject = "";
                 String task = "";
@@ -177,9 +202,9 @@ public class CoordinatorAgent extends BaseAgent {
             }
         }
 
-        // 如果没有解析到子任务，创建默认分配
         if (assignments.isEmpty() && !plan.contains("DIRECT:")) {
-            // 根据关键词智能分配
+            List<TaskAssignment> fallback = quickRoute(originalInput);
+            if (!fallback.isEmpty()) return fallback;
             if (originalInput.contains("天气") || originalInput.contains("温度")) {
                 assignments.add(new TaskAssignment("weather-agent", "天气查询", originalInput));
             } else if (originalInput.contains("写") || originalInput.contains("撰写") || originalInput.contains("文章")) {
@@ -189,29 +214,6 @@ public class CoordinatorAgent extends BaseAgent {
             }
         }
         return assignments;
-    }
-
-    /** 汇总多个 Agent 的结果 */
-    private String aggregateResults(String originalInput, List<String> subResults) {
-        String combined = String.join("\n\n", subResults);
-        return chatClient.prompt()
-            .system("你是一个结果汇总专家。请将多个Agent的执行结果整合为一份完整的最终回答。")
-            .user("原始任务: " + originalInput + "\n\n各Agent执行结果:\n" + combined + "\n\n请生成一份完整、连贯的最终回答。")
-            .call().content();
-    }
-
-    /** 获取所有 Agent 的描述 */
-    public Map<String, String> getAvailableAgents() {
-        Map<String, String> result = new LinkedHashMap<>();
-        for (BaseAgent agent : subAgents.values()) {
-            StringBuilder sb = new StringBuilder(agent.getDescription());
-            sb.append(" | 技能: ");
-            for (Skill s : agent.getSkills()) {
-                sb.append(s.name()).append(",");
-            }
-            result.put(agent.getName(), sb.toString());
-        }
-        return result;
     }
 
     /** 获取所有 Agent 的详细信息（含技能列表） */
@@ -243,5 +245,5 @@ public class CoordinatorAgent extends BaseAgent {
         return s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
     }
 
-    private record TaskAssignment(String agentName, String subject, String task) {}
+    public record TaskAssignment(String agentName, String subject, String task) {}
 }

@@ -6,10 +6,15 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xslf.usermodel.*;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import java.io.IOException;
 import org.apache.poi.xwpf.usermodel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -21,23 +26,49 @@ import java.util.*;
 
 /**
  * 文件生成服务 -使用 AI 生成内容，Apache POI 创建 PPT/Word/Excel 文件
+ * 输出目录可配置（app.generated-files-dir），生成文件按保留期自动清理。
  */
 @Service
 public class FileGenService {
 
     private static final Logger log = LoggerFactory.getLogger(FileGenService.class);
     private final ChatClient chatClient;
+    private final UsageTracker usageTracker;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Path outputDir;
 
-    public FileGenService(ChatClient chatClient) {
+    @Value("${app.gen-files-retention-days:7}")
+    private int retentionDays;
+
+    public FileGenService(ChatClient chatClient, UsageTracker usageTracker,
+                          @Value("${app.generated-files-dir:/opt/springaitest/data/generated-files}") String outputDir) {
         this.chatClient = chatClient;
-        // 输出目录
-        this.outputDir = Path.of("/opt/springaitest/data/generated-files");
+        this.usageTracker = usageTracker;
+        this.outputDir = Path.of(outputDir);
         try {
-            Files.createDirectories(outputDir);
+            Files.createDirectories(this.outputDir);
         } catch (Exception e) {
-            log.warn("无法创建文件输出目录: {}", outputDir, e);
+            log.warn("无法创建文件输出目录: {}", this.outputDir, e);
+        }
+    }
+
+    /** 每日凌晨清理超过保留期的生成文件（防磁盘增长） */
+    @Scheduled(cron = "0 30 3 * * *")
+    public void cleanupExpiredFiles() {
+        if (!Files.exists(outputDir)) return;
+        long cutoff = System.currentTimeMillis() - retentionDays * 24L * 3600 * 1000;
+        try (var files = Files.list(outputDir)) {
+            files.filter(Files::isRegularFile)
+                 .forEach(p -> {
+                     try {
+                         if (Files.getLastModifiedTime(p).toMillis() < cutoff) {
+                             Files.deleteIfExists(p);
+                             log.info("已清理过期生成文件: {}", p.getFileName());
+                         }
+                     } catch (IOException ignored) {}
+                 });
+        } catch (IOException e) {
+            log.warn("生成文件清理失败", e);
         }
     }
 
@@ -57,7 +88,7 @@ public class FileGenService {
 
     private Path generatePptx(String topic) throws Exception {
         String prompt = buildPptPrompt(topic);
-        String aiResponse = chatClient.prompt().user(prompt).call().content();
+        String aiResponse = callAi("files.generate.pptx", prompt);
         log.debug("AI PPT 响应: {}", aiResponse);
 
         Map<String, Object> data = parseJson(aiResponse);
@@ -179,7 +210,7 @@ public class FileGenService {
 
     private Path generateDocx(String topic) throws Exception {
         String prompt = buildDocxPrompt(topic);
-        String aiResponse = chatClient.prompt().user(prompt).call().content();
+        String aiResponse = callAi("files.generate.docx", prompt);
         log.debug("AI DOCX 响应: {}", aiResponse);
 
         Map<String, Object> data = parseJson(aiResponse);
@@ -266,7 +297,7 @@ public class FileGenService {
 
     private Path generateXlsx(String topic) throws Exception {
         String prompt = buildXlsxPrompt(topic);
-        String aiResponse = chatClient.prompt().user(prompt).call().content();
+        String aiResponse = callAi("files.generate.xlsx", prompt);
         log.debug("AI XLSX 响应: {}", aiResponse);
 
         Map<String, Object> data = parseJson(aiResponse);
@@ -359,6 +390,20 @@ public class FileGenService {
         wb.dispose();
         log.info("XLSX 已生成: {}", filePath);
         return filePath;
+    }
+
+    private String callAi(String endpoint, String prompt) {
+        long start = System.currentTimeMillis();
+        ChatResponse response = chatClient.prompt().user(prompt).call().chatResponse();
+        String result = response.getResult() != null ? response.getResult().getOutput().getText() : "";
+        Usage usage = response.getMetadata() != null ? response.getMetadata().getUsage() : null;
+        long in = -1, out = -1;
+        if (usage != null) {
+            in = usage.getPromptTokens() != null ? usage.getPromptTokens() : -1;
+            out = usage.getCompletionTokens() != null ? usage.getCompletionTokens() : -1;
+        }
+        usageTracker.recordWithUsage(endpoint, prompt, result, System.currentTimeMillis() - start, in, out);
+        return result;
     }
 
     // ===== AI 提示词 =====

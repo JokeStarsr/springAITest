@@ -1,13 +1,10 @@
 package org.example.ai.agent.skill;
 
 import org.example.ai.agent.core.Skill;
-import org.example.ai.agent.core.ToolResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-
-import java.util.Map;
 
 /**
  * 计算器技能 - 执行数学计算和统计分析
@@ -17,37 +14,12 @@ public class CalculatorSkill implements Skill {
 
     private static final Logger log = LoggerFactory.getLogger(CalculatorSkill.class);
 
-    // ====== Skill 接口（兼容旧版） ======
-
     @Override
     public String name() { return "calculator"; }
 
     @Override
     public String description() {
         return "执行数学计算，支持表达式求值、求和、平均值、最大值、最小值、排序等统计操作";
-    }
-
-    @Override
-    public String parametersSchema() {
-        return "{ \"expression\": \"数学表达式(如 3+5*2)\", 或 \"operation\": \"sum|avg|max|min|sort\", \"numbers\": \"逗号分隔的数字列表\" }";
-    }
-
-    @Override
-    public ToolResult execute(Map<String, Object> params) {
-        try {
-            if (params.containsKey("expression")) {
-                return ToolResult.success(name(), "计算结果: " + calculate((String) params.get("expression")));
-            }
-            if (params.containsKey("operation") && params.containsKey("numbers")) {
-                String op = (String) params.get("operation");
-                String numsStr = (String) params.get("numbers");
-                return ToolResult.success(name(), doStatistics(op, numsStr));
-            }
-            return ToolResult.failure(name(), "参数不足");
-        } catch (Exception e) {
-            log.error("CalculatorSkill 执行失败", e);
-            return ToolResult.failure(name(), "计算失败: " + e.getMessage());
-        }
     }
 
     // ====== Spring AI @Tool 方法（主要入口） ======

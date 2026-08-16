@@ -1,5 +1,6 @@
 package org.example;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,7 +12,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * 集成测试：需要真实 DeepSeek API key 与网络，标记 integration 默认排除。
+ * 运行: mvn test -Dgroups=integration
+ */
 @SpringBootTest
+@Tag("integration")
 class AgentTest {
 
     @Autowired

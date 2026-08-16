@@ -39,10 +39,22 @@ public class UsageTracker {
     private final List<UsageRecord> recentRecords = Collections.synchronizedList(new LinkedList<>());
     private static final int MAX_RECORDS = 100;
 
-    /** 记录一次调用 */
+    /** 记录一次调用（字符估算，备用通道） */
     public void record(String endpoint, String input, String output, long durationMs) {
-        long inputTokens = estimateTokens(input);
-        long outputTokens = estimateTokens(output);
+        recordInner(endpoint, estimateTokens(input), estimateTokens(output), durationMs);
+    }
+
+    /**
+     * 用 Spring AI 返回的真实 TokenUsage 记录；usage 为 null 时回退为字符估算。
+     */
+    public void recordWithUsage(String endpoint, String input, String output, long durationMs, long inputTokens, long outputTokens) {
+        recordInner(endpoint,
+                inputTokens >= 0 ? inputTokens : estimateTokens(input),
+                outputTokens >= 0 ? outputTokens : estimateTokens(output),
+                durationMs);
+    }
+
+    private void recordInner(String endpoint, long inputTokens, long outputTokens, long durationMs) {
         long costFen = calcCost(inputTokens, outputTokens);
 
         totalCalls.incrementAndGet();

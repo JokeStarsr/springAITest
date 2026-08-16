@@ -87,6 +87,11 @@ public class KnowledgeBaseRepository {
             count, new Timestamp(System.currentTimeMillis()), id);
     }
 
+    public void updateUploadDir(long id, String uploadDir) {
+        jdbc.update("UPDATE knowledge_bases SET upload_dir = ?, updated_at = ? WHERE id = ?",
+            uploadDir, new Timestamp(System.currentTimeMillis()), id);
+    }
+
     public void deleteById(long id) {
         jdbc.update("DELETE FROM knowledge_bases WHERE id = ?", id);
     }

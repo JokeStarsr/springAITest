@@ -1,7 +1,6 @@
 package org.example.ai.agent.skill;
 
 import org.example.ai.agent.core.Skill;
-import org.example.ai.agent.core.ToolResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
@@ -33,27 +32,12 @@ public class WeatherSkill implements Skill {
         this.restClient = RestClient.builder().baseUrl(baseUrl).build();
     }
 
-    // ====== Skill 接口（兼容旧版） ======
-
     @Override
     public String name() { return "weather_query"; }
 
     @Override
     public String description() {
         return "查询指定城市当天或未来5天的天气情况，返回温度、天气状况、湿度、风力等真实气象数据";
-    }
-
-    @Override
-    public String parametersSchema() {
-        return "{ \"city\": \"城市名称\", \"days\": \"查询天数(可选,默认1,最大5)\" }";
-    }
-
-    @Override
-    public ToolResult execute(Map<String, Object> params) {
-        String city = (String) params.getOrDefault("city", "");
-        String result = queryWeather(city, parseDaysFromParams(params));
-        return result.startsWith("错误") ? ToolResult.failure(name(), result)
-                                         : ToolResult.success(name(), result);
     }
 
     // ====== Spring AI @Tool 方法（主要入口） ======
@@ -158,14 +142,5 @@ public class WeatherSkill implements Skill {
             count++;
         }
         return sb.toString().trim();
-    }
-
-    private int parseDaysFromParams(Map<String, Object> params) {
-        Object daysObj = params.get("days");
-        if (daysObj instanceof Number) return Math.min(((Number) daysObj).intValue(), 5);
-        if (daysObj instanceof String && !((String) daysObj).isBlank()) {
-            try { return Math.min(Integer.parseInt((String) daysObj), 5); } catch (NumberFormatException ignored) {}
-        }
-        return 1;
     }
 }

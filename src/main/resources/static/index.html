@@ -849,7 +849,7 @@
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            if (!resp.ok) throw await apiError(resp);
             const result = await resp.json();
             const duration = ((Date.now() - startTime) / 1000).toFixed(2);
             document.getElementById('agentRespTime').textContent = duration + 's';
@@ -962,7 +962,7 @@
     async function loadKnowledgeBases() {
         try {
             const resp = await fetch('/api/knowledge-bases');
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            if (!resp.ok) throw await apiError(resp);
             const kbs = await resp.json();
             const container = document.getElementById('kbList');
             if (kbs.length === 0) {
@@ -1041,7 +1041,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, description: desc })
             });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            if (!resp.ok) throw await apiError(resp);
             document.getElementById('kbName').value = '';
             document.getElementById('kbDesc').value = '';
             showStatus('ragStatus', '✅ 知识库创建成功', 'success');
@@ -1062,7 +1062,7 @@
                 method: 'POST',
                 body: formData
             });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            if (!resp.ok) throw await apiError(resp);
             const result = await resp.json();
             showStatus('ragStatus', '✅ 上传成功！入库 ' + result.chunksIngested + ' 个文档块', 'success');
             input.value = '';
@@ -1076,7 +1076,7 @@
     async function reingestKb(id) {
         try {
             const resp = await fetch('/api/knowledge-bases/' + id + '/ingest', { method: 'POST' });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            if (!resp.ok) throw await apiError(resp);
             const result = await resp.json();
             showStatus('ragStatus', '✅ 重新入库完成，共 ' + result.chunksIngested + ' 块', 'success');
             await loadKnowledgeBases();
@@ -1093,7 +1093,7 @@
         resultDiv.textContent = '⏳ 正在检索知识库并生成回答...';
         try {
             const resp = await fetch('/api/knowledge-bases/' + id + '/query?question=' + encodeURIComponent(q));
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            if (!resp.ok) throw await apiError(resp);
             const result = await resp.json();
             resultDiv.innerHTML = '<strong style="color:var(--accent2);">💡 回答：</strong><br>' + escapeHtml(result.answer || '无结果');
         } catch (e) {
@@ -1106,7 +1106,7 @@
         if (!confirm('确定删除该知识库？所有文档向量将被清除，不可恢复。')) return;
         try {
             const resp = await fetch('/api/knowledge-bases/' + id, { method: 'DELETE' });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            if (!resp.ok) throw await apiError(resp);
             showStatus('ragStatus', '✅ 知识库已删除', 'success');
             await loadKnowledgeBases();
         } catch (e) {
@@ -1165,6 +1165,17 @@
     function escapeHtml(str) {
         if (str == null) return '';
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    /** 统一的接口错误解析：优先取后端 {message} / {error} 字段，回退 HTTP 状态码 */
+    async function apiError(resp) {
+        try {
+            const body = await resp.json();
+            const msg = (body && (body.message || body.error)) || ('HTTP ' + resp.status);
+            return new Error(msg);
+        } catch (e) {
+            return new Error('HTTP ' + resp.status);
+        }
     }
 
     // ====== 文件生成 ======

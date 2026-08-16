@@ -1,9 +1,9 @@
 package org.example.ai.agent.skill;
 
 import org.example.ai.agent.core.Skill;
-import org.example.ai.agent.core.ToolResult;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;import org.springframework.ai.tool.annotation.Tool;
+import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
 import java.util.LinkedHashMap;
@@ -17,32 +17,12 @@ public class TextAnalysisSkill implements Skill {
 
     private static final Logger log = LoggerFactory.getLogger(TextAnalysisSkill.class);
 
-    // ====== Skill 接口（兼容旧版） ======
-
     @Override
     public String name() { return "text_analysis"; }
 
     @Override
     public String description() {
         return "对文本进行统计分析：字数统计、词频统计、语言检测、情感倾向分析";
-    }
-
-    @Override
-    public String parametersSchema() {
-        return "{ \"text\": \"要分析的文本\", \"operation\": \"word_count|char_count|freq|sentiment|full\" }";
-    }
-
-    @Override
-    public ToolResult execute(Map<String, Object> params) {
-        String text = (String) params.getOrDefault("text", "");
-        String op = (String) params.getOrDefault("operation", "full");
-        if (text.isBlank()) return ToolResult.failure(name(), "文本为空");
-        try {
-            return ToolResult.success(name(), analyzeText(text, op));
-        } catch (Exception e) {
-            log.error("TextAnalysisSkill 执行失败", e);
-            return ToolResult.failure(name(), "分析失败: " + e.getMessage());
-        }
     }
 
     // ====== Spring AI @Tool 方法（主要入口） ======

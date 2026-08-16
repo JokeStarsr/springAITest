@@ -1,9 +1,10 @@
 package org.example.ai.agent.impl;
 
-import org.example.ai.agent.core.BaseAgent;
 import org.example.ai.agent.core.AgentContext;
+import org.example.ai.agent.core.BaseAgent;
 import org.example.ai.agent.skill.WeatherSkill;
 import org.example.ai.agent.skill.CalculatorSkill;
+import org.example.ai.service.UsageTracker;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
@@ -14,22 +15,21 @@ import org.springframework.stereotype.Component;
 @Component
 public class WeatherAgent extends BaseAgent {
 
-    public WeatherAgent(ChatClient chatClient, WeatherSkill weatherSkill, CalculatorSkill calculatorSkill) {
-        super(chatClient, "weather-agent",
+    public WeatherAgent(ChatClient chatClient, UsageTracker usageTracker, WeatherSkill weatherSkill, CalculatorSkill calculatorSkill) {
+        super(chatClient, usageTracker, "weather-agent",
             "天气查询专家，负责查询和比较各城市天气，提供出行建议。可查询单日天气和未来多日预报，并进行温度对比分析。");
         addSkill(weatherSkill);
         addSkill(calculatorSkill);
     }
 
     @Override
-    public String execute(String userInput) {
-        // 先从上下文获取可能已有的城市信息
+    public String execute(String userInput, AgentContext context) {
         if (context != null) {
             String cachedCity = context.get("target_city");
             if (cachedCity != null && !userInput.contains(cachedCity)) {
                 userInput = userInput + " 城市: " + cachedCity;
             }
         }
-        return super.execute(userInput);
+        return super.execute(userInput, context);
     }
 }

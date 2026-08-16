@@ -59,12 +59,14 @@ public class AdminController {
             result.put("pid", process.pid());
             log.info("部署脚本已启动, PID: {}", process.pid());
 
+            // 锁保持到部署进程结束，期间拒绝新的部署请求
+            process.onExit().whenComplete((p, ex) -> deploying.set(false));
+
         } catch (Exception e) {
             log.error("启动部署脚本失败", e);
+            deploying.set(false);
             result.put("status", "error");
             result.put("error", e.getMessage());
-        } finally {
-            deploying.set(false);
         }
         return result;
     }
@@ -107,6 +109,7 @@ public class AdminController {
         info.put("status", "UP");
         info.put("timestamp", new Date().toString());
         info.put("autoDeploy", autoDeploy);
+        info.put("deploying", deploying.get());
         return info;
     }
 

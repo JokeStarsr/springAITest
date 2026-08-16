@@ -1,7 +1,6 @@
 package org.example.ai.agent.skill;
 
 import org.example.ai.agent.core.Skill;
-import org.example.ai.agent.core.ToolResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
@@ -32,28 +31,12 @@ public class WebSearchSkill implements Skill {
         this.restClient = RestClient.builder().build();
     }
 
-    // ====== Skill 接口（兼容旧版） ======
-
     @Override
     public String name() { return "web_search"; }
 
     @Override
     public String description() {
         return "搜索互联网获取最新信息，返回标题、URL和摘要。基于Brave搜索引擎，覆盖全球网页。";
-    }
-
-    @Override
-    public String parametersSchema() {
-        return "{ \"query\": \"搜索关键词\", \"count\": \"返回结果数量(可选,默认3,最大10)\" }";
-    }
-
-    @Override
-    public ToolResult execute(Map<String, Object> params) {
-        String query = (String) params.getOrDefault("query", "");
-        int count = params.containsKey("count") ? ((Number) params.get("count")).intValue() : 3;
-        String result = searchWeb(query, count);
-        return result.startsWith("错误") || result.startsWith("未配置")
-            ? ToolResult.failure(name(), result) : ToolResult.success(name(), result);
     }
 
     // ====== Spring AI @Tool 方法（主要入口） ======

@@ -1,9 +1,11 @@
 package org.example.ai.agent.impl;
 
+import org.example.ai.agent.core.AgentContext;
 import org.example.ai.agent.core.BaseAgent;
 import org.example.ai.agent.skill.WebSearchSkill;
 import org.example.ai.agent.skill.TextAnalysisSkill;
 import org.example.ai.agent.skill.CalculatorSkill;
+import org.example.ai.service.UsageTracker;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
@@ -14,9 +16,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class ResearchAgent extends BaseAgent {
 
-    public ResearchAgent(ChatClient chatClient, WebSearchSkill webSearchSkill,
+    public ResearchAgent(ChatClient chatClient, UsageTracker usageTracker, WebSearchSkill webSearchSkill,
                          TextAnalysisSkill textAnalysisSkill, CalculatorSkill calculatorSkill) {
-        super(chatClient, "research-agent",
+        super(chatClient, usageTracker, "research-agent",
             "深度研究分析专家，可搜索互联网获取信息，分析文本数据，进行计算统计，产出一份结构化研究报告。");
         addSkill(webSearchSkill);
         addSkill(textAnalysisSkill);
@@ -24,14 +26,11 @@ public class ResearchAgent extends BaseAgent {
     }
 
     @Override
-    public String execute(String userInput) {
-        // 从上下文获取已有研究结果
-        if (context != null) {
-            String existingResearch = context.get("research_data");
-            if (existingResearch != null) {
-                userInput = userInput + "\n[已有研究数据]\n" + existingResearch;
-            }
+    public String execute(String userInput, AgentContext context) {
+        String existingResearch = context != null ? context.get("research_data") : null;
+        if (existingResearch != null) {
+            userInput = userInput + "\n[已有研究数据]\n" + existingResearch;
         }
-        return super.execute(userInput);
+        return super.execute(userInput, context);
     }
 }

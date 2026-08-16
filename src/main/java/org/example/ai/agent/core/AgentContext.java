@@ -20,10 +20,21 @@ public class AgentContext {
     private final Map<String, Object> sharedData = new ConcurrentHashMap<>();
     private final List<AgentMessage> messages = Collections.synchronizedList(new ArrayList<>());
     private final List<String> executionLog = Collections.synchronizedList(new ArrayList<>());
+    private volatile String historyText = "";
 
     public AgentContext(String sessionId) {
         this.sessionId = sessionId;
         this.createdAt = Instant.now();
+    }
+
+    /** 注入会话历史文本（多轮对话用，由会话管理器维护） */
+    public void setHistoryText(String historyText) {
+        this.historyText = historyText != null ? historyText : "";
+    }
+
+    /** 获取会话历史文本，空串表示无历史 */
+    public String getHistoryText() {
+        return historyText;
     }
 
     // ====== 共享数据存取 ======

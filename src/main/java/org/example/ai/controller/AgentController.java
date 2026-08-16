@@ -2,6 +2,7 @@ package org.example.ai.controller;
 
 import org.example.ai.agent.core.AgentContext;
 import org.example.ai.agent.impl.CoordinatorAgent;
+import org.example.ai.service.ConversationManager;
 import org.example.ai.service.UsageTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
 /**
- * Agent 控制器 - 基于新架构的多 Agent 协作入口
+ * Agent 控制器 - 基于新架构的多 Agent 协作入口（会话并发安全）
  */
 @RestController
 @RequestMapping("/api/agent")
@@ -18,39 +19,31 @@ public class AgentController {
 
     private final CoordinatorAgent coordinator;
     private final UsageTracker usageTracker;
+    private final ConversationManager conversations;
     private static final Logger log = LoggerFactory.getLogger(AgentController.class);
 
-    // 保存最近的会话上下文（用于演示，生产环境应使用 Redis 等）
-    private final Map<String, AgentContext> sessions = new LinkedHashMap<>() {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, AgentContext> eldest) {
-            return size() > 50;
-        }
-    };
-
-    public AgentController(CoordinatorAgent coordinator, UsageTracker usageTracker) {
+    public AgentController(CoordinatorAgent coordinator, UsageTracker usageTracker, ConversationManager conversations) {
         this.coordinator = coordinator;
         this.usageTracker = usageTracker;
+        this.conversations = conversations;
     }
 
     /**
-     * 智能 Agent 路由 - 自动协调多 Agent 协作
+     * 智能 Agent 路由 - 自动协调多 Agent 协作（携带会话历史，sessionId 复用上下文）
      */
     @PostMapping("/process")
     public Map<String, Object> process(@RequestBody ProcessRequest request) {
-        String task = request.getTask();
+        String task = request.getTask().trim();
         String sessionId = request.getSessionId() != null ? request.getSessionId() : UUID.randomUUID().toString();
-        log.info("收到任务: {}", task);
+        log.info("收到任务: {} session={}", task, sessionId);
 
-        // 创建或获取会话上下文
-        AgentContext context = sessions.computeIfAbsent(sessionId, k -> new AgentContext(k));
-        coordinator.setContext(context);
+        AgentContext context = conversations.getOrCreateContext(sessionId);
 
         long startTime = System.currentTimeMillis();
-        String result = coordinator.execute(task);
+        String result = coordinator.execute(task, context);
         long duration = System.currentTimeMillis() - startTime;
+        conversations.appendExchange(sessionId, task, result);
 
-        // 记录用量
         usageTracker.record("agent/process", task, result, duration);
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -60,7 +53,7 @@ public class AgentController {
         response.put("duration", duration + "ms");
         response.put("executionLog", context.getExecutionLog());
         response.put("sharedData", context.snapshot());
-        response.put("usage", usageTracker.getStats()); // 附带用量统计
+        response.put("usage", usageTracker.getStats());
         return response;
     }
 
@@ -70,17 +63,16 @@ public class AgentController {
     @PostMapping("/execute/{agentName}")
     public Map<String, Object> executeAgent(@PathVariable String agentName,
                                             @RequestBody ProcessRequest request) {
+        String task = request.getTask().trim();
         String sessionId = request.getSessionId() != null ? request.getSessionId() : UUID.randomUUID().toString();
-        AgentContext context = sessions.computeIfAbsent(sessionId, k -> new AgentContext(k));
-        coordinator.setContext(context);
+        AgentContext context = conversations.getOrCreateContext(sessionId);
 
-        // 使用 Coordinator 的目标 Agent 路由
-        String task = "使用 " + agentName + " 处理: " + request.getTask();
+        String routed = "使用 " + agentName + " 处理: " + task;
         long startTime = System.currentTimeMillis();
-        String result = coordinator.execute(task);
+        String result = coordinator.execute(routed, context);
         long duration = System.currentTimeMillis() - startTime;
+        conversations.appendExchange(sessionId, task, result);
 
-        // 记录用量
         usageTracker.record("agent/execute/" + agentName, task, result, duration);
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -90,7 +82,7 @@ public class AgentController {
         response.put("sessionId", sessionId);
         response.put("duration", duration + "ms");
         response.put("executionLog", context.getExecutionLog());
-        response.put("usage", usageTracker.getStats()); // 附带用量统计
+        response.put("usage", usageTracker.getStats());
         return response;
     }
 
@@ -107,10 +99,7 @@ public class AgentController {
      */
     @GetMapping("/sessions/{sessionId}")
     public Map<String, Object> getSession(@PathVariable String sessionId) {
-        AgentContext context = sessions.get(sessionId);
-        if (context == null) {
-            return Map.of("error", "会话不存在", "sessionId", sessionId);
-        }
+        AgentContext context = conversations.getOrCreateContext(sessionId);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sessionId", context.getSessionId());
         result.put("createdAt", context.getCreatedAt().toString());
@@ -119,7 +108,15 @@ public class AgentController {
         return result;
     }
 
-    // 内部类
+    /**
+     * 清空会话（历史与共享数据）
+     */
+    @DeleteMapping("/sessions/{sessionId}")
+    public Map<String, String> clearSession(@PathVariable String sessionId) {
+        conversations.clear(sessionId);
+        return Map.of("status", "ok", "sessionId", sessionId);
+    }
+
     public static class ProcessRequest {
         private String task;
         private String sessionId;
