@@ -44,3 +44,5 @@ application-secrets.yml
 ### Archives ###
 *.tar.gz
 *.zip
+### Local ops scripts (contains credentials) ###
+ssh_exec.sh
