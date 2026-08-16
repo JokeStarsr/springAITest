@@ -119,11 +119,12 @@ public class CoordinatorAgent extends BaseAgent {
         return aggregateResults(userInput, subResults, context);
     }
 
-    /** 让 LLM 分析任务并生成执行计划 */
+    /** 让 LLM 分析任务并生成执行计划；失败时返回空串走关键词兜底路由 */
     private String analyzeTask(String userInput, AgentContext context) {
         String agentsDesc = buildAgentsDescription();
         long start = System.currentTimeMillis();
-        ChatResponse response = fastChatClient.prompt()
+        try {
+            ChatResponse response = fastChatClient.prompt()
             .system("""
                 你是一个任务协调专家。分析用户任务，决定由哪个Agent来处理。
 
@@ -144,21 +145,30 @@ public class CoordinatorAgent extends BaseAgent {
             .user("用户任务: " + userInput)
             .call()
             .chatResponse();
-        recordChatUsage("coordinator.analyze", userInput, start, response);
-        return response.getResult() != null ? response.getResult().getOutput().getText() : "";
+            recordChatUsage("coordinator.analyze", userInput, start, response);
+            return response.getResult() != null ? response.getResult().getOutput().getText() : "";
+        } catch (Exception e) {
+            log.warn("任务分析调用失败，走关键词兜底路由: {}", e.getMessage());
+            return "";
+        }
     }
 
-    /** 汇总多个 Agent 的结果 */
+    /** 汇总多个 Agent 的结果；AI 汇总失败时直接拼接子结果返回（不整请求 500） */
     private String aggregateResults(String originalInput, List<String> subResults, AgentContext context) {
         String combined = String.join("\n\n", subResults);
         long start = System.currentTimeMillis();
-        ChatResponse response = fastChatClient.prompt()
-            .system("你是一个结果汇总专家。请将多个Agent的执行结果整合为一份完整的最终回答。")
-            .user("原始任务: " + originalInput + "\n\n各Agent执行结果:\n" + combined + "\n\n请生成一份完整、连贯的最终回答。")
-            .call()
-            .chatResponse();
-        recordChatUsage("coordinator.aggregate", originalInput, start, response);
-        return response.getResult() != null ? response.getResult().getOutput().getText() : "";
+        try {
+            ChatResponse response = fastChatClient.prompt()
+                .system("你是一个结果汇总专家。请将多个Agent的执行结果整合为一份完整的最终回答。")
+                .user("原始任务: " + originalInput + "\n\n各Agent执行结果:\n" + combined + "\n\n请生成一份完整、连贯的最终回答。")
+                .call()
+                .chatResponse();
+            recordChatUsage("coordinator.aggregate", originalInput, start, response);
+            return response.getResult() != null ? response.getResult().getOutput().getText() : "";
+        } catch (Exception e) {
+            log.warn("结果汇总调用失败，降级为原始拼接: {}", e.getMessage());
+            return "综合结果：\n\n" + combined;
+        }
     }
 
     private void recordChatUsage(String endpoint, String input, long start, ChatResponse response) {
